@@ -1,17 +1,24 @@
-from flask import Blueprint, render_template, flash, request, redirect, url_for
-from flask.ext.login import login_user, logout_user, login_required
+from flask import Blueprint, render_template, jsonify, flash, request, redirect, url_for
+# from flask_socketio import SocketIO
+# from flask.ext.login import login_user, logout_user, login_required
 
 from mothership.extensions import cache
 # from mothership.forms import LoginForm
-# from mothership.models import User
 
 main = Blueprint('main', __name__)
-
+#socketio = SocketIO()
 
 @main.route('/')
 @cache.cached(timeout=1000)
 def home():
 	return render_template('index.html')
+
+@main.route('/stats')
+def stats():
+	return jsonify(data='1')
+
+
+
 
 
 # @main.route("/login", methods=["GET", "POST"])

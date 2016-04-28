@@ -1,0 +1,35 @@
+{%extends "base.html"%}
+
+{%block title%}Home{% endblock %}
+
+{%block body%}
+<div class="container">
+    <h1 class="text-center">Flask Login Example</h1>
+
+    <div class="row">
+        <div class="col-md-4"></div>
+        <div class="col-md-4">
+            <form role="form" action="{{ url_for('campaigns.new_campaign') }}" method="post">
+                {{ form.hidden_tag() }}
+
+                <div class="form-group">
+                    {{ form.name.label }}
+                    {% if form.name.errors %}
+                    {% for e in form.name.errors %}
+                    <p class="help-block">{{ e }}</p>
+                    {% endfor %}
+                    {% endif %}
+                    {{ form.name(class_="form-control") }}
+                </div>
+
+
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div>
+        <div class="col-md-4"></div>
+    </div>
+</div>
+
+
+{%endblock%}
+

@@ -34,7 +34,8 @@
 			</div>
 			<div class="collapse navbar-collapse">
 				<ul class="nav navbar-nav">
-					<li><a href="{{ url_for('.home') }}">Home</a></li>
+					<li><a href="{{ url_for('main.home') }}">Home</a></li>
+                    <li><a href="{{ url_for('campaigns.list_campaigns') }}">Campaigns</a></li>
 
 					{#
                     {% if not current_user.is_authenticated() %}

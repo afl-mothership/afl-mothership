@@ -1,0 +1,42 @@
+{%extends "base.html"%}
+
+{%block title%}Home{% endblock %}
+
+{%block body%}
+<div class="container">
+    <h1>Campaigns</h1>
+    <br/><br/><br/>
+    <!--<div class=" well well-lg">-->
+        <table class="table table-hover">
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Active instances</th>
+                <th>Description</th>
+                <th>Tool</th>
+                <th>Executions</th>
+                <th>Crashes</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for campaign in campaigns %}
+                <tr class="tr_link" data-href="{{ url_for('campaigns.campaign', id=campaign.id) }}">
+                    <td><b>{{ campaign.name }}</b></td>
+                    <td>A</td>
+                    <td>A</td>
+                    <td>A</td>
+                    <td>A</td>
+                    <td>A</td>
+                    <td>A</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    <!--</div>-->
+    <a href="{{ url_for('campaigns.new_campaign') }}" type="button" class="btn btn-primary btn-lg active">New Campaign</a>
+</div>
+
+
+{%endblock%}
+

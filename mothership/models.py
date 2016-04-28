@@ -4,6 +4,42 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
+class Model:
+	id = db.Column(db.Integer(), primary_key=True)
+
+	@classmethod
+	def get(cls, **kwargs):
+		return cls.query.filter_by(**kwargs).first()
+
+	@classmethod
+	def create(cls, **kwargs):
+		model = cls(**kwargs)
+		db.session.add(model)
+		db.session.commit()
+		return model
+
+	def put(self):
+		db.session.add(self)
+		db.session.commit()
+		print("PUT")
+
+	def delete(self):
+		db.session.delete(self)
+		db.session.commit()
+
+	def commit(self):
+		db.session.commit()
+
+
+class Campaign(Model, db.Model):
+	__tablename__ = 'campaign'
+	name = db.Column(db.String())
+
+	def __init__(self, name):
+		self.name = name
+
+
+
 
 # class User(db.Model, UserMixin):
 # 	id = db.Column(db.Integer(), primary_key=True)

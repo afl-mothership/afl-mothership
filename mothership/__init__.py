@@ -9,6 +9,8 @@ from flask import Flask
 from webassets.loaders import PythonLoader as PythonAssetsLoader
 
 from mothership.controllers.main import main
+from mothership.controllers.campaigns import campaigns
+from mothership.controllers.graphs import graphs
 from mothership import assets
 from mothership.models import db
 
@@ -55,5 +57,7 @@ def create_app(object_name):
 
 	# register our blueprints
 	app.register_blueprint(main)
+	app.register_blueprint(campaigns)
+	app.register_blueprint(graphs)
 
 	return app
