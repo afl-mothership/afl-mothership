@@ -33,13 +33,36 @@ class Model:
 
 class Campaign(Model, db.Model):
 	__tablename__ = 'campaign'
+
 	name = db.Column(db.String())
+	fuzzers = db.relationship('FuzzerInstance', backref='fuzzer', lazy='dynamic')
 
 	def __init__(self, name):
 		self.name = name
 
 
+class FuzzerInstance(Model, db.Model):
+	__tablename__ = 'instance'
 
+	campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
+	snapshots = db.relationship('FuzzerSnapshot', backref='fuzzer', lazy='dynamic')
+
+
+class FuzzerSnapshot(Model, db.Model):
+	__tablename__ = 'snapshot'
+
+	instance_id = db.Column(db.Integer, db.ForeignKey('instance.id'))
+	unix_time = db.Column(db.Integer())
+	cycles_done = db.Column(db.Integer())
+	cur_path = db.Column(db.Integer())
+	paths_total = db.Column(db.Integer())
+	pending_total = db.Column(db.Integer())
+	pending_favs = db.Column(db.Integer())
+	map_size = db.Column(db.Float())
+	unique_crashes = db.Column(db.Integer())
+	unique_hangs = db.Column(db.Integer())
+	max_depth = db.Column(db.Integer())
+	execs_per_sec = db.Column(db.Float())
 
 # class User(db.Model, UserMixin):
 # 	id = db.Column(db.Integer(), primary_key=True)

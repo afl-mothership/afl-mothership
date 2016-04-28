@@ -5,7 +5,12 @@
 {%block body%}
 <div class="container">
     <h1>{{ campaign.name }}</h1>
-    <div id="tester" data-graph="{{ url_for('graphs.campaign', id=campaign.id) }}"></div>
+    <div id="crashes"
+         data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"
+         data-title="Unique Crashes Reported"></div>
+    <!--<div id="execs"
+         data-graph="{{ url_for('graphs.execs', campaign_id=campaign.id) }}"
+         ></div>-->
 </div>
 
 
