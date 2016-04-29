@@ -1,39 +1,52 @@
+import os
 import sys
-import sqlite3
+from pprint import pprint
+import requests
 
 
 def slist(l):
 	return ', '.join(l)
 
+
+def optimistic_parse(value):
+	for t in [int, float]:
+		try:
+			return t(value)
+		except ValueError:
+			pass
+	if '%' in value:
+		return optimistic_parse(value.replace('%', ''))
+	return value
+
 def main():
-	dbfile = sys.argv[1]
-	importfile = sys.argv[2]
-	name = sys.argv[3]
-	try:
-		campaign = int(name)
-	except ValueError:
-		pass
-	else:
-		name = None
+	mothership = 'http://localhost:5000'
+	if len(sys.argv) > 2:
+		mothership = sys.argv[2]
+	status_file = os.path.join(sys.argv[1], 'fuzzer_stats')
+	plot_file = os.path.join(sys.argv[1], 'plot_data')
 
-	db = sqlite3.connect(dbfile)
-	c = db.cursor()
+	status = {}
+	with open(status_file, 'r') as f:
+		for line in f.readlines():
+			key, value = line.replace('\n', '').split(':')
+			status[key.strip()] = optimistic_parse(value[1:])
 
-	if name:
-		c.execute('INSERT INTO campaign VALUES (NULL, "%s");' % name)
-		campaign = c.lastrowid
-	c.execute('INSERT INTO instance VALUES (NULL, %d);' % campaign)
-	instance_id = c.lastrowid
-
-	with open(importfile, 'r') as f:
+	snapshots = []
+	with open(plot_file, 'r') as f:
 		keys = f.readline()[2:-1].split(', ')
 		for line in f.readlines():
 			values = line[:-1].split(', ')
 			values[6] = values[6][:-1]
-			c.execute('INSERT INTO snapshot (instance_id, %s) VALUES (%d, %s);' % (slist(keys), instance_id, slist(values)))
+			snapshots.append(dict(zip(keys, values)))
 
-	db.commit()
-	db.close()
+	pprint(status)
+	r = requests.get(mothership + '/fuzzers/register?hostname=imported')
+	pprint(r.json())
+	instance = r.json()['id']
+	requests.post(mothership + '/fuzzers/submit/%d' % instance, json={
+		'snapshots': snapshots,
+		'status': status
+	})
 
 if __name__ == '__main__':
 	main()

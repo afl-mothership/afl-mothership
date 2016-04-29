@@ -21,9 +21,9 @@
             </thead>
             <tbody>
             {% for campaign in campaigns %}
-                <tr class="tr_link" data-href="{{ url_for('campaigns.campaign', id=campaign.id) }}">
+                <tr class="tr_link" data-href="{{ url_for('campaigns.campaign', campaign_id=campaign.id) }}">
                     <td><b>{{ campaign.name }}</b></td>
-                    <td>A</td>
+                    <td>{% if campaign.active %}Active{% else %}Inactive{% endif %}</td>
                     <td>A</td>
                     <td>A</td>
                     <td>A</td>

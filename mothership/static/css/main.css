@@ -5,3 +5,43 @@
 .tr_link{
 	cursor:pointer
 }
+
+th.shrink {
+	text-align: right;
+	padding-right: 20px !important;
+	white-space: nowrap;
+	width: 1px;
+}
+
+.borderless td, .borderless th {
+    border: none !important;
+}
+
+.progress {
+	margin-bottom: 0px;
+}
+
+.box {
+	position: relative;
+    margin-right: 0;
+    margin-left: 0;
+    padding: 45px 15px 15px;
+    border-style: solid;
+    border-color: #e5e5e5 #eee #eee;
+    border-width: 1px;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 1px 1px 1px rgba(0,0,0,.05);
+    box-shadow: inset 1px 1px 1px rgba(0,0,0,.05);
+    margin-top: 20px;
+}
+
+.box-title {
+	position: absolute;
+	top: 15px;
+	left: 15px;
+	font-size: 12px;
+	font-weight: bold;
+	color: #959595;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}

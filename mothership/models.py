@@ -1,8 +1,10 @@
 from flask.ext.sqlalchemy import SQLAlchemy
-from flask.ext.login import UserMixin, AnonymousUserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 db = SQLAlchemy()
+
+def init_db():
+	Campaign.update_all(queue_archive=None)
 
 class Model:
 	id = db.Column(db.Integer(), primary_key=True)
@@ -10,6 +12,10 @@ class Model:
 	@classmethod
 	def get(cls, **kwargs):
 		return cls.query.filter_by(**kwargs).first()
+
+	@classmethod
+	def all(cls, **kwargs):
+		return cls.query.filter_by(**kwargs)
 
 	@classmethod
 	def create(cls, **kwargs):
@@ -21,14 +27,38 @@ class Model:
 	def put(self):
 		db.session.add(self)
 		db.session.commit()
-		print("PUT")
 
 	def delete(self):
 		db.session.delete(self)
 		db.session.commit()
 
-	def commit(self):
+	@staticmethod
+	def commit():
 		db.session.commit()
+
+	def update(self, **kwargs):
+		for k in kwargs:
+			if hasattr(type(self), k) and type(getattr(type(self), k)) is InstrumentedAttribute:
+				setattr(self, k, kwargs[k])
+			else:
+				raise KeyError('%r does not have property %r' % (type(self), k))
+
+	@classmethod
+	def update_all(cls, **kwargs):
+		updates = {}
+		for k in kwargs:
+			if hasattr(cls, k) and type(getattr(cls, k)) is InstrumentedAttribute:
+				updates[getattr(cls, k)] = kwargs[k]
+			else:
+				raise KeyError('%r does not have property %r' % (cls, k))
+		cls.query.update(updates)
+
+	def to_dict(self):
+		r = {}
+		for k in dir(type(self)):
+			if type(getattr(type(self), k)) is InstrumentedAttribute and type(getattr(self, k)) in [str, int, float]:
+				r[k] = getattr(self, k)
+		return r
 
 
 class Campaign(Model, db.Model):
@@ -36,6 +66,9 @@ class Campaign(Model, db.Model):
 
 	name = db.Column(db.String())
 	fuzzers = db.relationship('FuzzerInstance', backref='fuzzer', lazy='dynamic')
+
+	active = db.Column(db.Boolean(), default=False)
+	queue_archive = db.Column(db.String())
 
 	def __init__(self, name):
 		self.name = name
@@ -46,7 +79,43 @@ class FuzzerInstance(Model, db.Model):
 
 	campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
 	snapshots = db.relationship('FuzzerSnapshot', backref='fuzzer', lazy='dynamic')
+	hostname = db.Column(db.String())
 
+	start_time = db.Column(db.Integer())
+	last_update = db.Column(db.Integer())
+	fuzzer_pid = db.Column(db.Integer())
+	cycles_done = db.Column(db.Integer())
+	execs_done = db.Column(db.Integer())
+	execs_per_sec = db.Column(db.Float())
+	paths_total = db.Column(db.Integer())
+	paths_favored = db.Column(db.Integer())
+	paths_found = db.Column(db.Integer())
+	paths_imported = db.Column(db.Integer())
+	max_depth = db.Column(db.Integer())
+	cur_path = db.Column(db.Integer())
+	pending_favs = db.Column(db.Integer())
+	pending_total = db.Column(db.Integer())
+	variable_paths = db.Column(db.Integer())
+	bitmap_cvg = db.Column(db.Float())
+	unique_crashes = db.Column(db.Integer())
+	unique_hangs = db.Column(db.Integer())
+	last_path = db.Column(db.Integer())
+	last_crash = db.Column(db.Integer())
+	last_hang = db.Column(db.Integer())
+	exec_timeout = db.Column(db.Integer())
+	afl_banner = db.Column(db.String())
+	afl_version = db.Column(db.String())
+	command_line = db.Column(db.String())
+
+	@property
+	def name(self):
+		if self.hostname:
+			return 'fuzzer %d (%s)' % (self.id, self.hostname)
+		return 'fuzzer %d' % self.id
+
+	@property
+	def campaign(self):
+		return Campaign.get(id=self.id)
 
 class FuzzerSnapshot(Model, db.Model):
 	__tablename__ = 'snapshot'
@@ -63,39 +132,3 @@ class FuzzerSnapshot(Model, db.Model):
 	unique_hangs = db.Column(db.Integer())
 	max_depth = db.Column(db.Integer())
 	execs_per_sec = db.Column(db.Float())
-
-# class User(db.Model, UserMixin):
-# 	id = db.Column(db.Integer(), primary_key=True)
-# 	username = db.Column(db.String())
-# 	password = db.Column(db.String())
-#
-# 	def __init__(self, username, password):
-# 		self.username = username
-# 		self.set_password(password)
-#
-# 	def set_password(self, password):
-# 		self.password = generate_password_hash(password)
-#
-# 	def check_password(self, value):
-# 		return check_password_hash(self.password, value)
-#
-# 	def is_authenticated(self):
-# 		if isinstance(self, AnonymousUserMixin):
-# 			return False
-# 		else:
-# 			return True
-#
-# 	def is_active(self):
-# 		return True
-#
-# 	def is_anonymous(self):
-# 		if isinstance(self, AnonymousUserMixin):
-# 			return True
-# 		else:
-# 			return False
-#
-# 	def get_id(self):
-# 		return self.id
-#
-# 	def __repr__(self):
-# 		return '<User %r>' % self.username

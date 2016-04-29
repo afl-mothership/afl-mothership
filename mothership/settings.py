@@ -4,7 +4,10 @@ db_file = tempfile.NamedTemporaryFile()
 
 class Config(object):
 	SECRET_KEY = 'secret key'
-
+	FUZZER_KEY = 'secret key'
+	QUEUE_DIRECTORY = 'queue'
+	UPLOAD_FREQUENCY = 60 * 5  # 5 minutes
+	DOWNLOAD_FREQUENCY = 60 * 5  # 5 minutes
 
 class ProdConfig(Config):
 	ENV = 'prod'
@@ -15,6 +18,7 @@ class ProdConfig(Config):
 
 class DevConfig(Config):
 	ENV = 'dev'
+	FUZZER_KEY = ''
 	DEBUG = True
 	DEBUG_TB_INTERCEPT_REDIRECTS = False
 

@@ -1,0 +1,55 @@
+<div class="well" data-update-url="{{ url_for('campaigns.stats', campaign_id=campaign.id) }}" data-update-rate="5000">
+    <div class="row">
+        <div class="col-md-5">
+            <table class="table table-condensed borderless">
+				<caption>
+					<h4>Execution Status</h4>
+				</caption>
+                <tbody>
+				<tr>
+					<th class="shrink">Combined Run Time</th>
+					<td id="combined_run_str">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Total Executions</th>
+					<td id="total_executions_str">...</td>
+				</tr>
+                <tr>
+                    <th class="shrink">Total Paths</th>
+                    <td>...</td>
+                </tr>
+                <tr>
+                    <th class="shrink">Reported Crashes</th>
+                    <td>...</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+		<div class="col-md-2"></div>
+		<div class="col-md-5">
+			<table class="table table-condensed borderless">
+				<caption>
+					<h4>Yields</h4>
+				</caption>
+				<tbody>
+				<tr>
+					<th class="shrink">Last Instance Active</th>
+					<td id="last_instance_str">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Last New Path</th>
+					<td id="last_path_str">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Last Unique Crash</th>
+					<td id="last_crash_str">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Bitmap Coverage</th>
+					<td id="bitmap_coverage_str">...</td>
+				</tr>
+				</tbody>
+			</table>
+		</div>
+    </div>
+</div>

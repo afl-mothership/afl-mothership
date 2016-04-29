@@ -4,15 +4,39 @@
 
 {%block body%}
 <div class="container">
-    <h1>{{ campaign.name }}</h1>
-    <div id="crashes"
-         data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"
-         data-title="Unique Crashes Reported"></div>
-    <!--<div id="execs"
-         data-graph="{{ url_for('graphs.execs', campaign_id=campaign.id) }}"
-         ></div>-->
-</div>
+	<div class="row">
+		<div class="col-md-10">
+			<h1>{{ campaign.name }}</h1>
+		</div>
+		<div class="col-md-2 pull-right">
+			<h1>
+				{% if campaign.active %}
+				<a href="{{ url_for('campaigns.update', campaign_id=campaign.id) }}?enable=False" type="button" class="btn btn-danger btn-block">Disable</a>
+				{% else %}
+				<a href="{{ url_for('campaigns.update', campaign_id=campaign.id) }}?enable=True" type="button" class="btn btn-success btn-block">Enable</a>
+				{% endif %}
+			</h1>
+		</div>
+	</div>
 
+	<div class="box">
+		<div class="box-title">Stats &nbsp;(live)</div>
+		{% include 'fragments/status.html' %}
+	</div>
+
+	<div class="box">
+		<div class="box-title">Graphs</div>
+		<div id="crashes"
+			 data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"
+			 data-title="Unique Crashes Reported">
+		</div>
+	</div>
+
+	<div class="box">
+		<div class="box-title">Controls</div>
+
+	</div>
+</div>
 
 {%endblock%}
 

@@ -5,14 +5,16 @@ __author__ = 'Simon Pinfold'
 __email__ = 'simon@uint8.me'
 __version__ = '1.0'
 
+import os
 from flask import Flask
 from webassets.loaders import PythonLoader as PythonAssetsLoader
 
 from mothership.controllers.main import main
 from mothership.controllers.campaigns import campaigns
 from mothership.controllers.graphs import graphs
+from mothership.controllers.fuzzers import fuzzers
 from mothership import assets
-from mothership.models import db
+from mothership.models import db, init_db
 
 from mothership.extensions import (
 	cache,
@@ -59,5 +61,16 @@ def create_app(object_name):
 	app.register_blueprint(main)
 	app.register_blueprint(campaigns)
 	app.register_blueprint(graphs)
+	app.register_blueprint(fuzzers)
+	#socketio.init_app(app)
+
+	try:
+		os.mkdir(app.config['QUEUE_DIRECTORY'])
+	except FileExistsError:
+		pass
+
+	@app.before_first_request
+	def _run_on_start():
+		init_db()
 
 	return app
