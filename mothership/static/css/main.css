@@ -45,3 +45,8 @@ th.shrink {
 	text-transform: uppercase;
 	letter-spacing: 1px;
 }
+
+.chart{
+	height: 400px;
+	background-image: repeating-linear-gradient(45deg, #f5f5f5 0px, #f5f5f5 30px, transparent 30px, transparent 60px, #f5f5f5 60px);
+}

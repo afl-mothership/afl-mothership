@@ -6,17 +6,19 @@ from mothership import models
 graphs = Blueprint('graphs', __name__)
 
 
-def trace(snapshots, property_name):
-	try:
-		start = snapshots[0].unix_time
-	except IndexError:
-		return {}
-	x = []
-	y = []
-	for snapshot in snapshots:
-		x.append(snapshot.unix_time*1000)
-		y.append(getattr(snapshot, property_name))
-	return {'x': x, 'y': y, 'type': 'scatter'}
+# def trace(snapshots, property_name, starttime=None):
+# 	try:
+# 		start = snapshots[0].unix_time
+# 	except IndexError:
+# 		return {}
+# 	if starttime:
+# 		start = starttime
+# 	x = []
+# 	y = []
+# 	for snapshot in snapshots:
+# 		x.append((snapshot.unix_time-start)*1000)
+# 		y.append(getattr(snapshot, property_name))
+# 	return {'x': x, 'y': y}
 
 @graphs.route('/graphs/campaign/<int:campaign_id>/<property_name>')
 def graph_campaign(campaign_id, property_name):
@@ -24,38 +26,30 @@ def graph_campaign(campaign_id, property_name):
 		return 'Snapshot does not have property "%s"' % property_name, 400
 
 	campaign = models.Campaign.get(id=campaign_id)
+	start = min(fuzzer.start_time for fuzzer in campaign.fuzzers if fuzzer.start_time)
 	return jsonify(
-		data=[{
-			**trace(fuzzer.snapshots, property_name),
-			'name': fuzzer.name
-		} for i, fuzzer in enumerate(campaign.fuzzers)],
-		layout={
-			'title': property_name.replace('_', ' '),
-			'xaxis': {
-				'type': 'date',
-				'title': 'seconds'
-			},
-			'yaxis': {
-				'title': property_name.replace('_', ' ')
+		title={
+			'text': property_name.replace('_', ' ').title()
+		},
+		series=[{
+			'name': fuzzer.name,
+			'data': [[
+				(snapshot.unix_time-start)*1000,
+				getattr(snapshot, property_name)
+			] for snapshot in fuzzer.snapshots]
+		} for fuzzer in campaign.fuzzers if fuzzer.start_time],  # TODO fuzzer valid/has snapshots property
+		xAxis={
+			'type': 'datetime',
+			'title': {
+				'text': 'Duration'
 			}
+		},
+		yAxis={
+			'title': {
+				'text': property_name.replace('_', ' ').title()
+			}
+		},
+		exporting={
+
 		}
 	)
-
-
-# @graphs.route('/graphs/campaign/execs/<campaign_id>')
-# def execs(campaign_id):
-# 	campaign = models.Campaign.get(id=campaign_id)
-# 	return jsonify(
-# 		data=[
-# 			trace_sum(campaign.fuzzers, 'execs_per_sec')
-# 		],
-# 		layout={
-# 			'title': 'Total Executions',
-# 			'xaxis': {
-# 				'title': 'time'
-# 			},
-# 			'yaxis': {
-# 				'title': 'executions'
-# 			}
-# 		}
-# 	)

@@ -2,20 +2,43 @@ $('tr[data-href]').on("click", function() {
 	document.location = $(this).data('href');
 });
 
+function durationFormatter(x){
+	var millisInYear = 24*60*60*1000;
+	var days = x / millisInYear;
+	var pardays = x % millisInYear;
+	var s = Math.round(days) + ' days '
+	if (pardays){
+		s += Highcharts.dateFormat('%H:%M:%S', x)
+	}
+	return s
+}
+
 $('div[data-graph]').each(function(){
+	var that = this;
 	var id = $(this).attr('id');
 	var source = $(this).data('graph');
-	var that = this;
+
 	$.getJSON(source, function(data) {
-		var layout = data.layout || {};
 		if ('title' in $(that).data()){
-			$.extend(layout, {'title': $(that).data('title')});
+			data.title = data.title || {};
+			$.extend(data.title, {'text': $(that).data('title')});
 		}
-		Plotly.newPlot(
-			id,
-			data.data,
-			layout
-		);
+		data.xAxis.labels = data.xAxis.labels || {}
+		data.xAxis.labels.formatter = function(){
+			return durationFormatter(this.value)
+		};
+		data.tooltip = data.tooltip || {};
+		data.tooltip.formatter = function() {
+			var name = '';
+			if (data.yAxis && data.yAxis.title && data.yAxis.title.text){
+				name = data.yAxis.title.text + ': ';
+			}
+			return '<b>' + durationFormatter(this.x) + '</b><br/>' + name + '<b>' + this.y + '</b>'
+		};
+		data.credits = {
+			enabled: false
+		}
+		$(that).highcharts(data)
 	}).fail(function(data) {
 		console.log(data);
 		alert('ERROR: ' + data.responseText)
