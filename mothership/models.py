@@ -73,6 +73,10 @@ class Campaign(Model, db.Model):
 	def __init__(self, name):
 		self.name = name
 
+	@property
+	def started(self):
+		return bool(self.fuzzers.filter(FuzzerInstance.last_update != None).first())
+
 
 class FuzzerInstance(Model, db.Model):
 	__tablename__ = 'instance'
@@ -116,6 +120,10 @@ class FuzzerInstance(Model, db.Model):
 	@property
 	def campaign(self):
 		return Campaign.get(id=self.id)
+
+	@property
+	def started(self):
+	    return bool(self.last_update)
 
 class FuzzerSnapshot(Model, db.Model):
 	__tablename__ = 'snapshot'

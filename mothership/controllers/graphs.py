@@ -26,6 +26,8 @@ def graph_campaign(campaign_id, property_name):
 		return 'Snapshot does not have property "%s"' % property_name, 400
 
 	campaign = models.Campaign.get(id=campaign_id)
+	if not campaign.started:
+		return jsonify()
 	start = min(fuzzer.start_time for fuzzer in campaign.fuzzers if fuzzer.start_time)
 	return jsonify(
 		title={
@@ -37,7 +39,7 @@ def graph_campaign(campaign_id, property_name):
 				(snapshot.unix_time-start)*1000,
 				getattr(snapshot, property_name)
 			] for snapshot in fuzzer.snapshots]
-		} for fuzzer in campaign.fuzzers if fuzzer.start_time],  # TODO fuzzer valid/has snapshots property
+		} for fuzzer in campaign.fuzzers if fuzzer.started],  # TODO fuzzer valid/has snapshots property
 		xAxis={
 			'type': 'datetime',
 			'title': {

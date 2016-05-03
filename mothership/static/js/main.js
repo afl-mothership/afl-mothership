@@ -19,26 +19,34 @@ $('div[data-graph]').each(function(){
 	var source = $(this).data('graph');
 
 	$.getJSON(source, function(data) {
-		if ('title' in $(that).data()){
-			data.title = data.title || {};
-			$.extend(data.title, {'text': $(that).data('title')});
+	    if (Object.keys(data).length == 0){
+            if ('title' in $(that).data()){
+                $(that).text("No data for " + $(that).data('title'));
+            } else {
+                $(that).text("No data");
+            }
+        } else {
+            if ('title' in $(that).data()){
+                data.title = data.title || {};
+                $.extend(data.title, {'text': $(that).data('title')});
+            }
+            data.xAxis.labels = data.xAxis.labels || {}
+            data.xAxis.labels.formatter = function(){
+                return durationFormatter(this.value)
+            };
+            data.tooltip = data.tooltip || {};
+            data.tooltip.formatter = function() {
+                var name = '';
+                if (data.yAxis && data.yAxis.title && data.yAxis.title.text){
+                    name = data.yAxis.title.text + ': ';
+                }
+                return '<b>' + durationFormatter(this.x) + '</b><br/>' + name + '<b>' + this.y + '</b>'
+            };
+            data.credits = {
+                enabled: false
+            }
+            $(that).highcharts(data)
 		}
-		data.xAxis.labels = data.xAxis.labels || {}
-		data.xAxis.labels.formatter = function(){
-			return durationFormatter(this.value)
-		};
-		data.tooltip = data.tooltip || {};
-		data.tooltip.formatter = function() {
-			var name = '';
-			if (data.yAxis && data.yAxis.title && data.yAxis.title.text){
-				name = data.yAxis.title.text + ': ';
-			}
-			return '<b>' + durationFormatter(this.x) + '</b><br/>' + name + '<b>' + this.y + '</b>'
-		};
-		data.credits = {
-			enabled: false
-		}
-		$(that).highcharts(data)
 	}).fail(function(data) {
 		console.log(data);
 		alert('ERROR: ' + data.responseText)
