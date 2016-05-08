@@ -45,7 +45,13 @@ $('div[data-graph]').each(function(){
             data.credits = {
                 enabled: false
             }
-            $(that).highcharts(data)
+            data.exporting = {
+            	scale: 10,
+            	sourceWidth: 1100,
+            	sourceHeight: 400,
+            	filename: data.title.text
+            }
+            $(that).highcharts(data);
 		}
 	}).fail(function(data) {
 		console.log(data);

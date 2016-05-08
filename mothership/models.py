@@ -1,7 +1,9 @@
 from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 db = SQLAlchemy()
+db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=db))
 
 def init_db():
 	Campaign.update_all(queue_archive=None)
@@ -66,6 +68,7 @@ class Campaign(Model, db.Model):
 
 	name = db.Column(db.String())
 	fuzzers = db.relationship('FuzzerInstance', backref='fuzzer', lazy='dynamic')
+	crashes = db.relationship('Crash', backref='campaign', lazy='dynamic')
 
 	active = db.Column(db.Boolean(), default=False)
 	queue_archive = db.Column(db.String())
@@ -83,6 +86,7 @@ class FuzzerInstance(Model, db.Model):
 
 	campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
 	snapshots = db.relationship('FuzzerSnapshot', backref='fuzzer', lazy='dynamic')
+	crashes = db.relationship('Crash', backref='fuzzer', lazy='dynamic')
 	hostname = db.Column(db.String())
 
 	start_time = db.Column(db.Integer())
@@ -119,11 +123,11 @@ class FuzzerInstance(Model, db.Model):
 
 	@property
 	def campaign(self):
-		return Campaign.get(id=self.id)
+		return Campaign.get(id=self.campaign_id)
 
 	@property
 	def started(self):
-	    return bool(self.last_update)
+		return bool(self.last_update)
 
 class FuzzerSnapshot(Model, db.Model):
 	__tablename__ = 'snapshot'
@@ -140,3 +144,23 @@ class FuzzerSnapshot(Model, db.Model):
 	unique_hangs = db.Column(db.Integer())
 	max_depth = db.Column(db.Integer())
 	execs_per_sec = db.Column(db.Float())
+
+class Crash(Model, db.Model):
+	__tablename__ = 'crash'
+
+	campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
+	instance_id = db.Column(db.Integer, db.ForeignKey('instance.id'))
+
+	created = db.Column(db.Integer)
+	name = db.Column(db.String)
+	path = db.Column(db.String)
+	analyzed = db.Column(db.Boolean)
+
+	crash_in_debugger = db.Column(db.Integer)
+	address = db.Column(db.Integer)
+	faulting_instruction = db.Column(db.String)
+	exploitable = db.Column(db.String)
+	exploitable_hash = db.Column(db.String)
+	exploitable_data = db.Column(db.String)
+	frames = db.Column(db.String)
+

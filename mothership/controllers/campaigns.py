@@ -1,9 +1,12 @@
 import time
+import os
 from flask import Blueprint, render_template, flash, redirect, request, url_for, jsonify
+from datetime import datetime
 # from mothership.models import Campaign
 # from mothership.forms import Campaign as CampaignForm
 from mothership import forms, models
 from mothership.utils import format_timedelta_secs, pretty_size_dec, format_ago
+
 
 campaigns = Blueprint('campaigns', __name__)
 
@@ -25,7 +28,26 @@ def new_campaign():
 
 @campaigns.route('/campaigns/<int:campaign_id>')
 def campaign(campaign_id):
-	return render_template('campaign.html', campaign=models.Campaign.get(id=campaign_id))
+	campaign_model = models.Campaign.get(id=campaign_id)
+	if not campaign_model:
+		return 'Campaign not found', 404
+	return render_template('campaign.html', campaign=campaign_model)
+
+
+@campaigns.route('/campaigns/<int:campaign_id>/crashes')
+def analysis_queue_campaign(campaign_id):
+	campaign_model = models.Campaign.get(id=campaign_id)
+	if not campaign_model:
+		return 'Campaign not found', 404
+	return render_template('directory.html', title=campaign_model.name, children=[
+		{
+			'name': os.path.split(crash.path)[1],
+			'href': url_for('fuzzers.download_crash', crash_id=crash.id),
+			'date': ' ' * (70 - len(os.path.split(crash.path)[1])) + datetime.fromtimestamp(crash.created).strftime('%x %X'),
+			'size': str(os.stat(crash.path).st_size).rjust(20)
+		} for crash in models.Crash.all(campaign_id=campaign_id)
+	])
+
 
 @campaigns.route('/campaigns/update/<int:campaign_id>', methods=["GET", "POST"])
 def update(campaign_id):

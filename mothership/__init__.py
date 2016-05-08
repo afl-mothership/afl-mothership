@@ -44,7 +44,7 @@ def create_app(object_name):
 	cache.init_app(app)
 
 	# initialize the debug tool bar
-	debug_toolbar.init_app(app)
+	#debug_toolbar.init_app(app)
 
 	# initialize SQLAlchemy
 	db.init_app(app)
@@ -65,7 +65,7 @@ def create_app(object_name):
 	#socketio.init_app(app)
 
 	try:
-		os.mkdir(app.config['QUEUE_DIRECTORY'])
+		os.mkdir(app.config['DATA_DIRECTORY'])
 	except FileExistsError:
 		pass
 

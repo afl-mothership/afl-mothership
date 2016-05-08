@@ -5,7 +5,7 @@ db_file = tempfile.NamedTemporaryFile()
 class Config(object):
 	SECRET_KEY = 'secret key'
 	FUZZER_KEY = 'secret key'
-	QUEUE_DIRECTORY = 'queue'
+	DATA_DIRECTORY = 'data'
 	UPLOAD_FREQUENCY = 60 * 5  # 5 minutes
 	DOWNLOAD_FREQUENCY = 60 * 5  # 5 minutes
 

@@ -2,8 +2,8 @@
 
 import os
 
-from flask.ext.script import Manager, Server
-from flask.ext.script.commands import ShowUrls, Clean
+from flask_script import Manager, Server
+from flask_script.commands import ShowUrls, Clean
 from mothership import create_app
 from mothership.models import db
 # from mothership.models import User
