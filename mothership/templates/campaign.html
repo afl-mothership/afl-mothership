@@ -30,12 +30,17 @@
 			 data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"
 			 data-title="Unique Crashes Reported">
 		</div>
+		<br/>
+		<div id="distinct_addresses" class="chart"
+			 data-graph="{{ url_for('graphs.graph_campaign_addresses', campaign_id=campaign.id) }}"
+			 data-title="Crashes at Distinct Addresses">
+		</div>
 	</div>
 
-	<div class="box">
-		<div class="box-title">Controls</div>
 
-	</div>
+	<!--<div class="box">-->
+		<!--<div class="box-title">Controls</div>-->
+	<!--</div>-->
 </div>
 
 {%endblock%}
