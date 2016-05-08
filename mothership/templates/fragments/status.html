@@ -2,9 +2,9 @@
     <div class="row">
         <div class="col-md-5">
             <table class="table table-condensed borderless">
-				<caption>
-					<h4>Execution Status</h4>
-				</caption>
+				<!--<caption>-->
+					<!--<h4>Execution Status</h4>-->
+				<!--</caption>-->
                 <tbody>
 				<tr>
 					<th class="shrink">Combined Run Time</th>
@@ -18,19 +18,53 @@
                     <th class="shrink">Total Paths</th>
                     <td>...</td>
                 </tr>
-                <tr>
-                    <th class="shrink">Reported Crashes</th>
-                    <td>...</td>
-                </tr>
+				<tr>
+					<td>&nbsp;</td>
+				</tr>
+				<tr>
+					<th class="shrink">Crashes Awaiting Analysis</th>
+					<td id="awaiting_analysis">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Analyzed Crashes</th>
+					<td id="analyzed_crashes">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Distinct Faulting Addresses</th>
+					<td id="distinct_crashes">...</td>
+				</tr>
+				<tr>
+					<td>&nbsp;</td>
+				</tr>
+				<tr>
+					<th class="shrink">Exploitable</th>
+					<td id="exploitable">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Probably Exploitable</th>
+					<td id="probably_exploitable">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Probably Not Exploitable</th>
+					<td id="probably_not_exploitable">...</td>
+				</tr>
+				<tr>
+					<th class="shrink">Unknown</th>
+					<td id="unknown">...</td>
+				</tr>
+				<tr>
+					<th class="shrink" title="This value will be overinflated as it could be the same crash each time but we have no way of telling">No Crash In Debugger*</th>
+					<td id="heisenbugs">...</td>
+				</tr>
                 </tbody>
             </table>
         </div>
 		<div class="col-md-2"></div>
 		<div class="col-md-5">
 			<table class="table table-condensed borderless">
-				<caption>
-					<h4>Yields</h4>
-				</caption>
+				<!--<caption>-->
+					<!--<h4>Yields</h4>-->
+				<!--</caption>-->
 				<tbody>
 				<tr>
 					<th class="shrink">Last Instance Active</th>
@@ -43,6 +77,9 @@
 				<tr>
 					<th class="shrink">Last Unique Crash</th>
 					<td id="last_crash_str">...</td>
+				</tr>
+				<tr>
+					<td>&nbsp;</td>
 				</tr>
 				<tr>
 					<th class="shrink">Bitmap Coverage</th>

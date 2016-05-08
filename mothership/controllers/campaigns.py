@@ -62,6 +62,10 @@ def update(campaign_id):
 	return '', 500
 
 
+def count_crashes(crashes, **kwargs):
+	return sum(1 if all(hasattr(crash, k) and getattr(crash, k) == v for k, v in kwargs.items()) else 0 for crash in crashes)
+
+
 @campaigns.route('/campaigns/stats/<int:campaign_id>')
 def stats(campaign_id):
 	# campaign_model = models.Campaign.get(id=campaign_id)
@@ -74,6 +78,7 @@ def stats(campaign_id):
 			last_path = max(last_path, instance.last_path)
 			last_crash = max(last_crash, instance.last_crash)
 			last_update = max(last_update, instance.last_update)
+	crashes = list(models.Crash.query.filter_by(campaign_id=campaign_id).group_by(models.Crash.address))
 	return jsonify(
 		now=current_time,
 
@@ -90,7 +95,18 @@ def stats(campaign_id):
 		last_path_str=format_ago(current_time, last_path),
 
 		last_crash=last_path,
-		last_crash_str=format_ago(current_time, last_crash)
+		last_crash_str=format_ago(current_time, last_crash),
+
+		awaiting_analysis=models.Crash.query.filter_by(campaign_id=campaign_id, analyzed=False).count(),
+		analyzed_crashes=models.Crash.query.filter_by(campaign_id=campaign_id, analyzed=True).count(),
+		distinct_crashes=len(crashes),
+
+		exploitable=count_crashes(crashes, exploitable='EXPLOITABLE'),
+		probably_exploitable=count_crashes(crashes, exploitable='PROBABLY_EXPLOITABLE'),
+		probably_not_exploitable=count_crashes(crashes, exploitable='PROBABLY_NOT_EXPLOITABLE'),
+		unknown=count_crashes(crashes, exploitable='UNKNOWN'),
+		heisenbugs=models.Crash.query.filter_by(campaign_id=campaign_id, crash_in_debugger=False).count(),
+
 	)
 
 

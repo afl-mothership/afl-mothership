@@ -2,9 +2,14 @@
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<title>Title</title>
+	<title>{{ title }}</title>
 </head>
 <body>
-
+<h1>{{ title }}</h1>
+<hr>
+<pre>{% for child in children %}<a href="{{ child['href'] }}">{{ child['name'] }}</a>{{ child['date'] }}{{ child['size'] }}
+{% endfor %}
+</pre>
+<hr>
 </body>
 </html>
