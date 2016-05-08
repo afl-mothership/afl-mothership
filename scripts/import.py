@@ -2,10 +2,7 @@ import os
 import sys
 from pprint import pprint
 import requests
-
-
-def slist(l):
-	return ', '.join(l)
+import threading
 
 
 def optimistic_parse(value):
@@ -37,16 +34,34 @@ def main():
 		for line in f.readlines():
 			values = line[:-1].split(', ')
 			values[6] = values[6][:-1]
-			snapshots.append(dict(zip(keys, values)))
+			snapshot = dict(zip(keys, values))
+			snapshot['unix_time'] = int(snapshot['unix_time']) + 1460936204
+			snapshots.append(snapshot)
 
-	pprint(status)
 	r = requests.get(mothership + '/fuzzers/register?hostname=imported')
 	pprint(r.json())
 	instance = r.json()['id']
-	requests.post(mothership + '/fuzzers/submit/%d' % instance, json={
+	requests.post('%s/fuzzers/submit/%d' % (mothership, instance), json={
 		'snapshots': snapshots,
 		'status': status
 	})
+
+	sem = threading.Semaphore(25)
+
+	def submit_crash(crash_path):
+		with sem:
+			print(os.path.basename(crash_path))
+			with open(crash_path, 'rb') as crash_file:
+				requests.post('%s/fuzzers/submit_crash/%d?time=%d' % (mothership, instance, os.path.getmtime(crash_path)+1460936204), files={'file': crash_file})
+
+	crash_dir = os.path.join(sys.argv[1], 'crashes')
+	crashes = os.listdir(crash_dir)
+	for crash_name in crashes:
+		if crash_name == 'README.txt':
+			continue
+		crash_path = os.path.join(crash_dir, crash_name)
+		threading.Thread(target=submit_crash, args=(crash_path,)).start()
+
 
 if __name__ == '__main__':
 	main()
