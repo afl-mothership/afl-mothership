@@ -30,18 +30,21 @@ $('div[data-graph]').each(function(){
                 data.title = data.title || {};
                 $.extend(data.title, {'text': $(that).data('title')});
             }
-            data.xAxis.labels = data.xAxis.labels || {}
-            data.xAxis.labels.formatter = function(){
-                return durationFormatter(this.value)
-            };
-            data.tooltip = data.tooltip || {};
-            data.tooltip.formatter = function() {
-                var name = '';
-                if (data.yAxis && data.yAxis.title && data.yAxis.title.text){
-                    name = data.yAxis.title.text + ': ';
-                }
-                return '<b>' + durationFormatter(this.x) + '</b><br/>' + name + '<b>' + this.y + '</b>'
-            };
+            data.xAxis = data.xAxis || {};
+            if (data.xAxis.type === 'datetime'){
+				data.xAxis.labels = data.xAxis.labels || {};
+				data.xAxis.labels.formatter = function(){
+					return durationFormatter(this.value);
+				};
+				data.tooltip = data.tooltip || {};
+				data.tooltip.formatter = function() {
+					var name = '';
+					if (data.yAxis && data.yAxis.title && data.yAxis.title.text){
+						name = data.yAxis.title.text + ': ';
+					}
+					return '<b>' + durationFormatter(this.x) + '</b><br/>' + name + '<b>' + this.y + '</b>'
+				};
+			}
             data.credits = {
                 enabled: false
             }

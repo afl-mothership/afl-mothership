@@ -11,9 +11,13 @@ common_css = Bundle(
 common_js = Bundle(
 	'js/vendor/jquery.min.js',
 	'js/vendor/bootstrap.min.js',
-	'js/vendor/highcharts.js',
+
+	'js/vendor/highcharts.src.js',
+	'js/vendor/heatmap.src.js',
 	'js/vendor/exporting.js',
 	'js/vendor/offline-exporting.js',
+
+
 	Bundle(
 		'js/main.js',
 		filters='jsmin'

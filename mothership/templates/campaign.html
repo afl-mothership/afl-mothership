@@ -26,14 +26,18 @@
 
 	<div class="box">
 		<div class="box-title">Graphs</div>
-		<div id="crashes" class="chart"
-			 data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"
-			 data-title="Unique Crashes Reported">
-		</div>
-		<br/>
-		<div id="distinct_addresses" class="chart"
-			 data-graph="{{ url_for('graphs.graph_campaign_addresses', campaign_id=campaign.id) }}"
-			 data-title="Crashes at Distinct Addresses">
+		<!--<div id="crashes" class="chart"-->
+			 <!--data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"-->
+			 <!--data-title="Unique Crashes Reported">-->
+		<!--</div>-->
+		<!--<br/>-->
+		<!--<div id="distinct_addresses" class="chart"-->
+			 <!--data-graph="{{ url_for('graphs.graph_campaign_addresses', campaign_id=campaign.id) }}"-->
+			 <!--data-title="Crashes at Distinct Addresses">-->
+		<!--</div>-->
+		<div id="heatmap" class="chart"
+			 data-graph="{{ url_for('graphs.address_heatmap', campaign_id=campaign.id) }}"
+			 data-title="Address Heatmap">
 		</div>
 	</div>
 
