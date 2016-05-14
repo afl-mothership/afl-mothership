@@ -3,12 +3,12 @@ $('tr[data-href]').on("click", function() {
 });
 
 function durationFormatter(x){
-	var millisInYear = 24*60*60*1000;
-	var days = x / millisInYear;
-	var pardays = x % millisInYear;
-	var s = Math.round(days) + ' days '
+	var millisInDay = 24*60*60*1000;
+	var days = x / millisInDay;
+	var pardays = x % millisInDay;
+	var s = Math.floor(days) + ' days ';
 	if (pardays){
-		s += Highcharts.dateFormat('%H:%M:%S', x)
+		s += Highcharts.dateFormat('%H:%M:%S', x);
 	}
 	return s
 }

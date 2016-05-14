@@ -145,10 +145,12 @@ def submit_analysis(crash_id):
 	crash.analyzed = True
 	if crash.crash_in_debugger:
 		crash.address = request.json['pc']
+		crash.backtrace = ', '.join(str(frame['address']) for frame in request.json['frames'])
 		crash.faulting_instruction = request.json['faulting instruction']
 		crash.exploitable = request.json['exploitable']['Exploitability Classification']
 		crash.exploitable_hash = request.json['exploitable']['Hash']
-		crash.exploitable_data = json.dumps(request.json['exploitable'])
-		crash.frames = json.dumps(request.json['frames'])
+		crash.exploitable_data = request.json['exploitable']
+		crash.frames = request.json['frames']
+
 	crash.commit()
 	return ''

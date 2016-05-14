@@ -1,4 +1,4 @@
-<div class="well" data-update-url="{{ url_for('campaigns.stats', campaign_id=campaign.id) }}" data-update-rate="5000">
+<div class="well" data-update-url="{{ url_for('campaigns.stats', campaign_id=campaign.id) }}"> <!--data-update-rate="5000"-->
     <div class="row">
         <div class="col-md-5">
             <table class="table table-condensed borderless">
@@ -30,7 +30,7 @@
 					<td id="analyzed_crashes">...</td>
 				</tr>
 				<tr>
-					<th class="shrink">Distinct Faulting Addresses</th>
+					<th class="shrink">Distinct Backtraces</th>
 					<td id="distinct_crashes">...</td>
 				</tr>
 				<tr>

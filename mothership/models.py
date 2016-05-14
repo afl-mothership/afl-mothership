@@ -1,4 +1,7 @@
+import json
+
 from flask.ext.sqlalchemy import SQLAlchemy
+import sqlalchemy.types as types
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
@@ -7,6 +10,18 @@ db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind
 
 def init_db():
 	Campaign.update_all(queue_archive=None)
+
+class JsonType(types.TypeDecorator):
+	impl = types.Unicode
+
+	def process_bind_param(self, value, dialect):
+		return json.dumps(value)
+
+	def process_result_value(self, value, dialect):
+		if value:
+			return json.loads(value)
+		else:
+			return {}
 
 class Model:
 	id = db.Column(db.Integer(), primary_key=True)
@@ -158,9 +173,11 @@ class Crash(Model, db.Model):
 
 	crash_in_debugger = db.Column(db.Integer)
 	address = db.Column(db.Integer)
+	backtrace = db.Column(db.String)
 	faulting_instruction = db.Column(db.String)
 	exploitable = db.Column(db.String)
 	exploitable_hash = db.Column(db.String)
-	exploitable_data = db.Column(db.String)
-	frames = db.Column(db.String)
+	exploitable_data = db.Column(JsonType)
+	frames = db.Column(JsonType)
+
 

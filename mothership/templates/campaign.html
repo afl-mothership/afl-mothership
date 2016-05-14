@@ -26,25 +26,62 @@
 
 	<div class="box">
 		<div class="box-title">Graphs</div>
-		<!--<div id="crashes" class="chart"-->
-			 <!--data-graph="{{ url_for('graphs.graph_campaign', campaign_id=campaign.id, property_name='unique_crashes') }}"-->
-			 <!--data-title="Unique Crashes Reported">-->
-		<!--</div>-->
-		<!--<br/>-->
-		<!--<div id="distinct_addresses" class="chart"-->
-			 <!--data-graph="{{ url_for('graphs.graph_campaign_addresses', campaign_id=campaign.id) }}"-->
-			 <!--data-title="Crashes at Distinct Addresses">-->
-		<!--</div>-->
+		<div id="crashes" class="chart"
+			 data-graph="{{ url_for('graphs.snapshot_property', campaign_id=campaign.id, property_name='unique_crashes') }}"
+			 data-title="Crashes Reported">
+		</div>
+		<br/>
+		<div id="aggregated" class="chart"
+			 data-graph="{{ url_for('graphs.aggregated', campaign_id=campaign.id) }}"
+			 data-title="Aggregated Crashes">
+		</div>
+<!--
 		<div id="heatmap" class="chart"
-			 data-graph="{{ url_for('graphs.address_heatmap', campaign_id=campaign.id) }}"
+			 data-graph="{{ url_for('graphs.heatmap', campaign_id=campaign.id) }}"
 			 data-title="Address Heatmap">
 		</div>
+-->
 	</div>
 
 
-	<!--<div class="box">-->
-		<!--<div class="box-title">Controls</div>-->
-	<!--</div>-->
+	<div class="box">
+		<div class="box-title">Crashes</div>
+
+		<div class="row">
+			{% for crash in crashes %}
+			<div class="col-md-12">
+				<div class="well">
+					<h4>{{ crash.name }}</h4>
+					<br/>
+					<table class="table borderless">
+						<tr>
+							<th>Exploitability Classification</th>
+							<td>{{ crash.exploitable_data['Exploitability Classification'] }}</td>
+						</tr>
+						<tr>
+							<th>Description</th>
+							<td>{{ crash.exploitable_data['Description'] }}</td>
+						</tr>
+						<tr>
+							<th>Explanation</th>
+							<td>{{ crash.exploitable_data['Explanation'] }}</td>
+						</tr>
+					</table>
+					<table class="table table-striped table-condensed table-hover table-bordered">
+						{% for frame in crash.frames %}
+						<tr>
+							<td>{{ frame.description }}</td>
+						</tr>
+						{% endfor %}
+					</table>
+				</div>
+			</div>
+			{% endfor %}
+			{% for crash in heisenbugs %}
+
+			{% endfor %}
+		</div>
+	</div>
 </div>
 
 {%endblock%}

@@ -2,8 +2,8 @@ import time
 import os
 from flask import Blueprint, render_template, flash, redirect, request, url_for, jsonify
 from datetime import datetime
-# from mothership.models import Campaign
-# from mothership.forms import Campaign as CampaignForm
+from sqlalchemy import case
+
 from mothership import forms, models
 from mothership.utils import format_timedelta_secs, pretty_size_dec, format_ago
 
@@ -31,7 +31,16 @@ def campaign(campaign_id):
 	campaign_model = models.Campaign.get(id=campaign_id)
 	if not campaign_model:
 		return 'Campaign not found', 404
-	return render_template('campaign.html', campaign=campaign_model)
+	crashes = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace).order_by(case({
+		'EXPLOITABLE': 0,
+		'PROBABLY_EXPLOITABLE': 1,
+		'PROBABLY_NOT_EXPLOITABLE': 2,
+		'UNKNOWN': 3},
+		value=models.Crash.exploitable,
+		else_=4
+	))
+	heisenbugs = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=False)
+	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs)
 
 
 @campaigns.route('/campaigns/<int:campaign_id>/crashes')
@@ -59,26 +68,25 @@ def update(campaign_id):
 		campaign_model.put()
 		return redirect(url_for('campaigns.campaign', campaign_id=campaign_id))
 
-	return '', 500
+	return '', 400
 
 
 def count_crashes(crashes, **kwargs):
 	return sum(1 if all(hasattr(crash, k) and getattr(crash, k) == v for k, v in kwargs.items()) else 0 for crash in crashes)
 
-
 @campaigns.route('/campaigns/stats/<int:campaign_id>')
 def stats(campaign_id):
-	# campaign_model = models.Campaign.get(id=campaign_id)
+	campaign_model = models.Campaign.get(id=campaign_id)
 	current_time = int(time.time())
 	total_executions, combined_run, last_path, last_crash, last_update = 0, 0, 0, 0, 0
-	for instance in models.FuzzerInstance.all(campaign_id=campaign_id):
-		if instance.start_time:
+	for instance in campaign_model.fuzzers:
+		if instance.start_time is not None:
 			total_executions += instance.execs_done
 			combined_run += instance.last_update - instance.start_time
 			last_path = max(last_path, instance.last_path)
 			last_crash = max(last_crash, instance.last_crash)
 			last_update = max(last_update, instance.last_update)
-	crashes = list(models.Crash.query.filter_by(campaign_id=campaign_id).group_by(models.Crash.address))
+	crashes = list(models.Crash.query.filter_by(campaign_id=campaign_id, analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace))
 	return jsonify(
 		now=current_time,
 

@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request, render_template
 from sqlalchemy import desc
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
@@ -51,40 +51,44 @@ def get_starts(fuzzers):
 		starts.append(start)
 	return starts
 
-def get_distinct(campaign, crash_filter={}):
+def unique_crashes(campaign_id, consider_unique, **crash_filter):
+	crash_alias = aliased(models.Crash)
+	sub = models.db_session.query(func.min(crash_alias.created)).filter(getattr(models.Crash, consider_unique) == getattr(crash_alias, consider_unique))
+	return models.Crash.query \
+		.filter(models.Crash.created == sub) \
+		.filter_by(campaign_id=campaign_id, crash_in_debugger=True, **crash_filter) \
+		.order_by(models.Crash.created) \
+		.group_by(models.Crash.created, getattr(models.Crash, consider_unique))
+
+def get_distinct(campaign, consider_unique, **crash_filter):
 	r = []
 	fuzzers = [f for f in campaign.fuzzers.order_by(models.FuzzerInstance.start_time) if f.started]
 	starts = dict(zip((f.id for f in fuzzers), get_starts(fuzzers)))
-	crash_alias = aliased(models.Crash)
-	sub = models.db_session.query(func.min(crash_alias.created)).filter(models.Crash.address == crash_alias.address)
 	last_created, last_crashes, this_crashes = 0, 0, 0
-	for crash in models.Crash.query\
-			.filter(models.Crash.created == sub)\
-			.filter_by(campaign_id=campaign.id, crash_in_debugger=True, **crash_filter)\
-			.order_by(models.Crash.created)\
-			.group_by(models.Crash.created, models.Crash.address):
-		#c =
+	for crash in unique_crashes(campaign.id, consider_unique, **crash_filter):
 		created = (crash.created - starts[crash.instance_id]) * 1000
 		if last_created == created:
 			this_crashes += 1
 		else:
 			r.append([last_created, last_crashes])
-			r.append([last_created+1, this_crashes])
-
-			last_created, last_crashes, this_crashes = created, this_crashes, this_crashes+1
+			r.append([last_created + 1, this_crashes])
+			last_created, last_crashes, this_crashes = created, this_crashes, this_crashes + 1
 	r.append([(fuzzers[-1].last_update - starts[fuzzers[-1].id]) * 1000, last_crashes])
 	return r
 
 
-def graph(title, series):
+def graph(title, series, chart_type='line'):
 	return jsonify(
+		chart={
+			'type': chart_type
+		},
 		title={
 			'text': title
 		},
 		series=[{
 			'name': data[0],
 			'data': data[1],
-			'type': data[2] if data[2:] else 'line'
+			'type': data[2] if data[2:] else chart_type
 		} for data in series],
 		xAxis={
 			'type': 'datetime',
@@ -100,88 +104,26 @@ def graph(title, series):
 	)
 
 
-@graphs.route('/graphs/campaign/<int:campaign_id>/address_heatmap')
-def address_heatmap(campaign_id):
+
+
+@graphs.route('/graphs/campaign/<int:campaign_id>/aggregated')
+def aggregated(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
-	if not campaign.started:
-		return jsonify()
-	#start = get_starts(campaign.fuzzers)[0]
-	crashes = defaultdict(int)
-	addresses = set()
-	#maxcrash = 0
-	for crash in campaign.crashes.filter(models.Crash.address != None):
-		#if crash.address > 100000000000000:
-		#	continue
-		#maxcrash = max(maxcrash, crash.address)
-		addresses.add(crash.address)
-		crashes[(crash.address, ((crash.created - crash.fuzzer.start_time) // (12*60*60)) )] += 1
-	# crashes2 = defaultdict(int)
-	# for (address, time), count in crashes.items():
-	# 	crashes2[(address//20000, time)] += count
-	# crashes = crashes2
-	#crashes = {(k[0], )}
-	return jsonify(
-		chart= {
-            'type': 'heatmap',
-            # marginTop: 40,
-            # marginBottom: 80,
-            # plotBorderWidth: 1
-        },
-		colorAxis= {
-            # 'stops': [
-            #     [0, '#3060cf'],
-            #     [0.5, '#fffbbc'],
-            #     [0.9, '#c4463a'],
-            #     [1, '#c4463a']
-            # ],
-            'min': 0,
-            'max': 25,
-			'minColor': '#0000FF',
-            'maxColor': '#FF0000'
-            # startOnTick: false,
-            # endOnTick: false,
-            # labels: {
-            #     format: '{value}℃'
-            # }
-        },
-		series= [{
-			 'colsize': 1,
-			'data': [
-				[str(k[0]), k[1], v] for k, v in sorted(crashes.items())#, key=lambda x: x[0][::-1])
-			]
-		}],
-		#yAxis= {
-        #    'type': 'datetime',
-            # 'min': 0,
-            # 'max': 24*60*60*1000,
-		#},
-		xAxis= {
-			#'tickLength': 500
-			'categories': [str(x) for x in sorted(addresses)],
-
-		# 	'min': 0,
-		# 	'max': 100
-		}
-	)
-
-
-@graphs.route('/graphs/campaign/<int:campaign_id>/distinct_addresses')
-def graph_campaign_addresses(campaign_id):
-	campaign = models.Campaign.get(id=campaign_id)
-	if not campaign.started:
+	if not campaign.started or not models.Crash.get(campaign_id=campaign_id):
 		return jsonify()
 	return graph('Distinct Addresses', [
-		('All Crashes', get_distinct(campaign))
+		('Distinct Addresses', get_distinct(campaign, 'address')),
+		('Distinct Backtraces', get_distinct(campaign, 'backtrace'))
 	])
 
 
 @graphs.route('/graphs/campaign/<int:campaign_id>/<property_name>')
-def graph_campaign(campaign_id, property_name):
+def snapshot_property(campaign_id, property_name):
 	if not hasattr(models.FuzzerSnapshot, property_name) or not type(getattr(models.FuzzerSnapshot, property_name)) is InstrumentedAttribute:
 		return 'Snapshot does not have property "%s"' % property_name, 400
 
 	campaign = models.Campaign.get(id=campaign_id)
-	if not campaign.started:
+	if not campaign.started or not campaign.fuzzers or not any(fuzzer.snapshots.first() for fuzzer in campaign.fuzzers):
 		return jsonify()
 
 	fuzzers = [f for f in campaign.fuzzers.order_by(models.FuzzerInstance.start_time) if f.started]
@@ -192,3 +134,11 @@ def graph_campaign(campaign_id, property_name):
 			getattr(snapshot, property_name)
 		] for snapshot in fuzzer.snapshots]
 	) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)])
+
+
+@graphs.route('/graph')
+def render_graph():
+	url = request.args.get('url')
+	if not url:
+		return 'Specify a graph URL in the request', 400
+	return render_template('graph.html', url=url)

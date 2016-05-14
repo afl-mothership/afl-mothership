@@ -35,7 +35,6 @@ def main():
 			values = line[:-1].split(', ')
 			values[6] = values[6][:-1]
 			snapshot = dict(zip(keys, values))
-			snapshot['unix_time'] = int(snapshot['unix_time']) + 1460936204
 			snapshots.append(snapshot)
 
 	r = requests.get(mothership + '/fuzzers/register?hostname=imported')
@@ -52,7 +51,7 @@ def main():
 		with sem:
 			print(os.path.basename(crash_path))
 			with open(crash_path, 'rb') as crash_file:
-				requests.post('%s/fuzzers/submit_crash/%d?time=%d' % (mothership, instance, os.path.getmtime(crash_path)+1460936204), files={'file': crash_file})
+				requests.post('%s/fuzzers/submit_crash/%d?time=%d' % (mothership, instance, os.path.getmtime(crash_path)), files={'file': crash_file})
 
 	crash_dir = os.path.join(sys.argv[1], 'crashes')
 	crashes = os.listdir(crash_dir)
