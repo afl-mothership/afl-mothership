@@ -52,13 +52,14 @@ def get_starts(fuzzers):
 	return starts
 
 def unique_crashes(campaign_id, consider_unique, **crash_filter):
-	crash_alias = aliased(models.Crash)
-	sub = models.db_session.query(func.min(crash_alias.created)).filter(getattr(models.Crash, consider_unique) == getattr(crash_alias, consider_unique))
-	return models.Crash.query \
-		.filter(models.Crash.created == sub) \
-		.filter_by(campaign_id=campaign_id, crash_in_debugger=True, **crash_filter) \
-		.order_by(models.Crash.created) \
-		.group_by(models.Crash.created, getattr(models.Crash, consider_unique))
+	r = []
+	s = set()
+	for crash in models.Crash.all(campaign_id=campaign_id, crash_in_debugger=True, **crash_filter).order_by(models.Crash.created):
+		if getattr(crash, consider_unique) in s:
+			continue
+		s.add(getattr(crash, consider_unique))
+		r.append(crash)
+	return r
 
 def get_distinct(campaign, consider_unique, **crash_filter):
 	r = []
@@ -111,8 +112,8 @@ def aggregated(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	if not campaign.started or not models.Crash.get(campaign_id=campaign_id):
 		return jsonify()
-	return graph('Distinct Addresses', [
-		('Distinct Addresses', get_distinct(campaign, 'address')),
+	return graph('Crashes', [
+		#('Distinct Addresses', get_distinct(campaign, 'address')),
 		('Distinct Backtraces', get_distinct(campaign, 'backtrace'))
 	])
 
