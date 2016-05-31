@@ -92,9 +92,6 @@ class Analysis:
 			print('No crash')
 
 if __name__ == '__main__':
-	#Analysis(sys.argv[1:]).print()
-	#exit(0)
-
 	mothership = 'http://ragnarok:5000'
 
 	while True:
@@ -110,7 +107,6 @@ if __name__ == '__main__':
 			urllib_request.urlretrieve(download, filename=sample)
 			analysis = Analysis(['identify', sample])
 			print('Crash:', crash_id)
-			#analysis.print()
 			if analysis.crash:
 				result = {
 					'crash': True,

@@ -6,8 +6,8 @@ class Config(object):
 	SECRET_KEY = 'secret key'
 	FUZZER_KEY = 'secret key'
 	DATA_DIRECTORY = 'data'
-	UPLOAD_FREQUENCY = 60 * 5  # 5 minutes
-	DOWNLOAD_FREQUENCY = 60 * 5  # 5 minutes
+	UPLOAD_FREQUENCY = 60 * 10    # 10 minutes
+	DOWNLOAD_FREQUENCY = 60 * 10  # 10 minutes
 
 class ProdConfig(Config):
 	ENV = 'prod'
