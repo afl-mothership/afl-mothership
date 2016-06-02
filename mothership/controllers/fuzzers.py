@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import subprocess
 import tarfile
 import tempfile
 import random
@@ -117,9 +118,8 @@ def upload(instance_id):
 	data_dir = current_app.config['DATA_DIRECTORY']
 	instance_queue_dir = os.path.join(data_dir, secure_filename(campaign.name), 'sync_dir', secure_filename(instance.name))
 	os.makedirs(instance_queue_dir, exist_ok=True)
-	tar = tarfile.open(fileobj=request.files['file'], mode='r:gz')
+	tar = tarfile.open(fileobj=request.files['file'], mode='r:')
 	for file in tar.getmembers():
-		file.name = file.name.replace(':', '-')
 		tar.extract(file, instance_queue_dir)
 	tar.close()
 	return jsonify(
@@ -139,21 +139,32 @@ def download(campaign_id):
 		sync_in=current_app.config['DOWNLOAD_FREQUENCY'],
 	)
 
-@fuzzers.route('/fuzzers/download/<int:campaign_id>/testcases.tar.gz', methods=['GET'])
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/testcases.tar', methods=['GET'])
 def download_testcases(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	testcases_dir = os.path.join(secure_filename(campaign.name), 'testcases')
 	testcases_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], testcases_dir)
 	return serve_directory_tar(testcases_local_dir, testcases_dir)
 
-@fuzzers.route('/fuzzers/download/<int:campaign_id>/syncdir.tar.gz', methods=['GET'])
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/syncdir.tar', methods=['GET'])
 def download_syncdir(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	syncdir = os.path.join(secure_filename(campaign.name), 'sync_dir')
 	syncdir_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], syncdir)
+	# tarfile is super slow (10-50x) for large tars so use native tar
+	with tempfile.NamedTemporaryFile(prefix='afl_syncdir') as file:
+		try:
+			cwd = current_app.config['DATA_DIRECTORY']
+			arcname = os.path.join(secure_filename(campaign.name), 'sync_dir')
+			errorcode = subprocess.call(['tar', 'cf', file.name, arcname], cwd=cwd)
+		except FileNotFoundError:
+			errorcode = 404
+		if not errorcode:
+			return send_file(file.name)
+	print('Native taring failed: %d' % errorcode)
 	return serve_directory_tar(syncdir_local_dir, syncdir)
 
-@fuzzers.route('/fuzzers/download/<int:campaign_id>/libraries.tar.gz', methods=['GET'])
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/libraries.tar', methods=['GET'])
 def download_libraries(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	syncdir = os.path.join(secure_filename(campaign.name), 'libraries')
@@ -174,7 +185,7 @@ def download_afl():
 def serve_directory_tar(local_dir, arcname):
 	tardata = io.BytesIO()
 	os.makedirs(local_dir, exist_ok=True)
-	with tarfile.open(fileobj=tardata, mode='w:gz') as tar:
+	with tarfile.open(fileobj=tardata, mode='w:') as tar:
 		tar.add(local_dir, arcname=arcname)
 	tardata.seek(0)
 	return send_file(tardata)

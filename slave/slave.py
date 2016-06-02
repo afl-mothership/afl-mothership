@@ -152,7 +152,7 @@ class MothershipSlave:
 		logger.info('Uploading queue')
 
 		queue_tar = os.path.join(self.own_dir, 'queue.tar.gz')
-		with tarfile.open(queue_tar, 'w:gz') as tar:
+		with tarfile.open(queue_tar, 'w:') as tar:
 			tar.add(os.path.join(self.own_dir, 'queue'), arcname='queue')
 		with open(queue_tar, 'rb') as f:
 			response = requests.post(self.upload_url, files={'file': f})
@@ -231,17 +231,17 @@ def download_queue(campaign_id, download_url, directory, initial_download=False,
 
 		testcases_tar = os.path.join(directory, 'libraries_%d.tar.gz' % campaign_id)
 		urllib_request.urlretrieve(response['libraries'], filename=testcases_tar)
-		with tarfile.open(testcases_tar, 'r:gz') as tar:
+		with tarfile.open(testcases_tar, 'r:') as tar:
 			tar.extractall(directory)
 
 		testcases_tar = os.path.join(directory, 'testcases_%d.tar.gz' % campaign_id)
 		urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
-		with tarfile.open(testcases_tar, 'r:gz') as tar:
+		with tarfile.open(testcases_tar, 'r:') as tar:
 			tar.extractall(directory)
 
 	sync_dir_tar = os.path.join(directory, 'sync_dir_%d.tar.gz' % campaign_id)
 	urllib_request.urlretrieve(response['sync_dir'], filename=sync_dir_tar)
-	with tarfile.open(sync_dir_tar, 'r:gz') as tar:
+	with tarfile.open(sync_dir_tar, 'r:') as tar:
 		tar.extractall(directory)
 
 	logger.info('Scheduling re-download in %d', response['sync_in'])
