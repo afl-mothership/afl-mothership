@@ -6,10 +6,13 @@ import os
 import shutil
 import subprocess
 import tempfile
+from queue import Full
+
 import requests
 from textwrap import wrap
 from urllib import request as urllib_request
 from itertools import zip_longest
+from multiprocessing import Process, Queue
 
 import sys
 
@@ -64,7 +67,7 @@ class Analysis:
 		with open(config, 'w') as f:
 			f.write('output = "%s"\n' % output)
 			f.write('exploitable_path = "%s"\n' % exploitable_path)
-		subprocess.run(['gdb', '-n', '-batch', '--command', config, '--command', gdbscript, '--args'] + args)
+		subprocess.run(['gdb', '-n', '-batch', '--command', config, '--command', gdbscript, '--args'] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 		with open(output, 'r') as f:
 			result = json.loads(f.read())
 		return result
@@ -91,33 +94,61 @@ class Analysis:
 		else:
 			print('No crash')
 
+
 if __name__ == '__main__':
-	mothership = 'http://ragnarok:5000'
+	mothership = sys.argv[1]  # 'http://ragnarok:5000'
+	count = int(sys.argv[2])
 
-	while True:
-		queue = requests.get(mothership + '/fuzzers/analysis_queue').json()['queue']
-		if not queue:
-			print('Queue empty - we\'re done here!')
-			break
-		crash_id = queue[0]['crash_id']
-		download = queue[0]['download']
+	queue = Queue(10 * count)
 
-		with tempdir(prefix='mothership_gdb_') as temp_dir:
-			sample = os.path.join(temp_dir, 'sample')
-			urllib_request.urlretrieve(download, filename=sample)
-			analysis = Analysis(['identify', sample])
-			print('Crash:', crash_id)
-			if analysis.crash:
-				result = {
-					'crash': True,
-					'pc': analysis.pc,
-					'faulting instruction': analysis.faulting_instruction,
-					'exploitable': analysis.exploitable,
-					'frames': analysis.frames
-				}
-			else:
-				result = {
-					'crash': False
-				}
-			requests.post('%s/fuzzers/submit_analysis/%d' % (mothership, crash_id), json=result)
+	with tempdir(prefix='mothership_gdb_') as temp_dir:
+		print(temp_dir)
+
+		def download_file(url):
+			crash_id = url.split('/')[-1]
+			local_filename = os.path.join(temp_dir, crash_id)
+			r = requests.get(url, stream=True)
+			with open(local_filename, 'wb') as f:
+				for chunk in r.iter_content(chunk_size=1024):
+					if chunk:
+						f.write(chunk)
+			return local_filename
+
+		def analyse(queue):
+			while True:
+				crash_id, path = queue.get()
+				analysis = Analysis(['identify', path])
+				if analysis.crash:
+					print(crash_id, 'crashed at:', analysis.pc)
+					result = {
+						'crash': True,
+						'pc': analysis.pc,
+						'faulting instruction': analysis.faulting_instruction,
+						'exploitable': analysis.exploitable,
+						'frames': analysis.frames
+					}
+				else:
+					print(crash_id, 'did not crash')
+					result = {
+						'crash': False
+					}
+				requests.post('%s/fuzzers/submit_analysis/%d' % (mothership, crash_id), json=result)
+
+		for _ in range(count):
+			p = Process(target=analyse, args=(queue,))
+			p.start()
+
+		while True:
+			analysis_queue = requests.get(mothership + '/fuzzers/analysis_queue').json()['queue']
+			if not analysis_queue:
+				break
+			for crash in analysis_queue[:10]:
+				path = download_file(crash['download'])
+				crash_id = crash['crash_id']
+				print('downloaded', crash_id)
+				queue.put((crash_id, path))
+		print('Queue empty - we\'re done here!')
+		exit(0)
+
+
 
