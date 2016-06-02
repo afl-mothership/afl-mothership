@@ -12,7 +12,7 @@ def init_db():
 	Campaign.update_all(queue_archive=None)
 
 class JsonType(types.TypeDecorator):
-	impl = types.Unicode
+	impl = types.Text
 
 	def process_bind_param(self, value, dialect):
 		return json.dumps(value)
@@ -81,12 +81,12 @@ class Model:
 class Campaign(Model, db.Model):
 	__tablename__ = 'campaign'
 
-	name = db.Column(db.String())
+	name = db.Column(db.String(128))
 	fuzzers = db.relationship('FuzzerInstance', backref='fuzzer', lazy='dynamic')
 	crashes = db.relationship('Crash', backref='campaign', lazy='dynamic')
 
 	active = db.Column(db.Boolean(), default=False)
-	queue_archive = db.Column(db.String())
+	queue_archive = db.Column(db.String(1024))
 
 	def __init__(self, name):
 		self.name = name
@@ -102,7 +102,7 @@ class FuzzerInstance(Model, db.Model):
 	campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
 	snapshots = db.relationship('FuzzerSnapshot', backref='fuzzer', lazy='dynamic')
 	crashes = db.relationship('Crash', backref='fuzzer', lazy='dynamic')
-	hostname = db.Column(db.String())
+	hostname = db.Column(db.String(128))
 
 	start_time = db.Column(db.Integer())
 	last_update = db.Column(db.Integer())
@@ -126,9 +126,9 @@ class FuzzerInstance(Model, db.Model):
 	last_crash = db.Column(db.Integer())
 	last_hang = db.Column(db.Integer())
 	exec_timeout = db.Column(db.Integer())
-	afl_banner = db.Column(db.String())
-	afl_version = db.Column(db.String())
-	command_line = db.Column(db.String())
+	afl_banner = db.Column(db.String(512))
+	afl_version = db.Column(db.String(64))
+	command_line = db.Column(db.String(1024))
 
 	@property
 	def name(self):
@@ -167,16 +167,16 @@ class Crash(Model, db.Model):
 	instance_id = db.Column(db.Integer, db.ForeignKey('instance.id'))
 
 	created = db.Column(db.Integer)
-	name = db.Column(db.String)
-	path = db.Column(db.String)
+	name = db.Column(db.String(1024))
+	path = db.Column(db.String(1024))
 	analyzed = db.Column(db.Boolean)
 
 	crash_in_debugger = db.Column(db.Integer)
 	address = db.Column(db.Integer)
-	backtrace = db.Column(db.String)
-	faulting_instruction = db.Column(db.String)
-	exploitable = db.Column(db.String)
-	exploitable_hash = db.Column(db.String)
+	backtrace = db.Column(db.Text())
+	faulting_instruction = db.Column(db.String(1024))
+	exploitable = db.Column(db.String(64))
+	exploitable_hash = db.Column(db.String(64))
 	exploitable_data = db.Column(JsonType)
 	frames = db.Column(JsonType)
 

@@ -11,15 +11,15 @@ class Config(object):
 
 class ProdConfig(Config):
 	ENV = 'prod'
-	SQLALCHEMY_DATABASE_URI = 'sqlite:///../database.db'
-
+	SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://<username>:<password>@<identifier>.amazonaws.com/mothership'
 	CACHE_TYPE = 'simple'
+	ASSETS_DEBUG = True
 
 
 class DevConfig(Config):
 	ENV = 'dev'
-	FUZZER_KEY = ''
 	DEBUG = True
+	SQLALCHEMY_TRACK_MODIFICATIONS = False
 	DEBUG_TB_INTERCEPT_REDIRECTS = False
 
 	SQLALCHEMY_DATABASE_URI = 'sqlite:///../database.db'
