@@ -73,6 +73,7 @@ class AflInstance(threading.Thread):
 		else:
 			env['LD_LIBRARY_PATH'] = ''
 		env['LD_LIBRARY_PATH'] += os.path.join(os.path.dirname(self.program), 'libraries')
+		env['AFL_IMPORT_FIRST'] = 'True'
 		if DEBUG:
 			self.process = subprocess.Popen(args, env=env)
 		else:
