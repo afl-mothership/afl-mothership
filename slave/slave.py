@@ -19,7 +19,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 DEBUG = False
-SUBMIT_FREQUENCY = 30
+SUBMIT_FREQUENCY = 15
 
 
 class tempdir:
@@ -243,7 +243,12 @@ def download_queue(campaign_id, download_url, directory, initial_download=False,
 	sync_dir_tar = os.path.join(directory, 'sync_dir_%d.tar.gz' % campaign_id)
 	urllib_request.urlretrieve(response['sync_dir'], filename=sync_dir_tar)
 	with tarfile.open(sync_dir_tar, 'r:') as tar:
-		tar.extractall(directory)
+		for file in tar.getmembers():
+			if '.state' in file.name:
+				continue
+			if os.path.exists(os.path.join(directory, file.name)):
+				continue
+			tar.extract(file, directory)
 
 	logger.info('Scheduling re-download in %d', response['sync_in'])
 	global download

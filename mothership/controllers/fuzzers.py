@@ -156,7 +156,7 @@ def download_syncdir(campaign_id):
 		try:
 			cwd = current_app.config['DATA_DIRECTORY']
 			arcname = os.path.join(secure_filename(campaign.name), 'sync_dir')
-			errorcode = subprocess.call(['tar', 'cf', file.name, arcname], cwd=cwd)
+			errorcode = subprocess.call(['tar', 'cf', file.name, arcname, '--exclude=.*'], cwd=cwd)
 		except FileNotFoundError:
 			errorcode = 404
 		if not errorcode:
