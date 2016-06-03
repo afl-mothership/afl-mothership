@@ -47,11 +47,11 @@ def optimistic_parse(value):
 
 class AflInstance(threading.Thread):
 
-	def __init__(self, directory, testcases, syncdir, name, args, program, program_args):
+	def __init__(self, directory, testcases, sync_dir, name, args, program, program_args):
 		super(AflInstance, self).__init__()
 		self.directory = directory
 		self.testcases = testcases
-		self.syncdir = syncdir
+		self.sync_dir = sync_dir
 		self.name = name
 		self.extra_args = args
 		self.program = program
@@ -62,7 +62,7 @@ class AflInstance(threading.Thread):
 	def run(self):
 		args = [os.path.join(self.directory, './afl-fuzz'),
 		        '-i', self.testcases, '-o',
-		        self.syncdir, '-S', self.name] + \
+		        self.sync_dir, '-S', self.name] + \
 		        self.extra_args + \
 				['--', self.program] + self.program_args
 
@@ -121,8 +121,8 @@ class MothershipSlave:
 
 		self.campaign_directory = os.path.join(directory, register['campaign_name'])
 		self.testcases = os.path.join(self.campaign_directory, 'testcases')
-		self.syncdir = os.path.join(self.campaign_directory, 'sync_dir')
-		self.own_dir = os.path.join(self.syncdir, self.name)
+		self.sync_dir = os.path.join(self.campaign_directory, 'sync_dir')
+		self.own_dir = os.path.join(self.sync_dir, self.name)
 
 		self.instance = None
 		self.upload_timer = None
@@ -133,7 +133,7 @@ class MothershipSlave:
 		self.instance = AflInstance(
 			self.directory,
 			self.testcases,
-			self.syncdir,
+			self.sync_dir,
 			self.name,
 			self.args,
 			os.path.join(self.campaign_directory, self.program),
@@ -217,11 +217,11 @@ class MothershipSlave:
 		self.instance.join()
 
 download = None
-def download_queue(campaign_id, download_url, directory, initial_download=False, executable_path=None):
+def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, executable_path=None):
 	logger.info('Downloading campaign data from %s' % download_url)
 	response = requests.get(download_url).json()
 
-	if initial_download:
+	if executable_path:
 		afl = os.path.join(directory, 'afl-fuzz')
 		if not os.path.exists(afl):
 			urllib_request.urlretrieve(response['afl'], filename=afl)
@@ -240,19 +240,23 @@ def download_queue(campaign_id, download_url, directory, initial_download=False,
 		with tarfile.open(testcases_tar, 'r:') as tar:
 			tar.extractall(directory)
 
-	sync_dir_tar = os.path.join(directory, 'sync_dir_%d.tar.gz' % campaign_id)
-	urllib_request.urlretrieve(response['sync_dir'], filename=sync_dir_tar)
-	with tarfile.open(sync_dir_tar, 'r:') as tar:
-		for file in tar.getmembers():
-			if '.state' in file.name:
-				continue
-			if os.path.exists(os.path.join(directory, file.name)):
-				continue
-			tar.extract(file, directory)
+	for download_sync_dir in response['sync_dirs']:
+		sync_dir_name = os.path.basename(download_sync_dir).rsplit('.', 1)[0]
+		if sync_dir_name in skip_dirs:
+			continue
+		extract_path = os.path.join(sync_dir, sync_dir_name)
+		try:
+			os.makedirs(extract_path)
+		except os.error as e:
+			logger.warn(e)
+		tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
+		urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
+		with tarfile.open(tar_path, 'r:') as tar:
+			tar.extractall(sync_dir)
 
 	logger.info('Scheduling re-download in %d', response['sync_in'])
 	global download
-	download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory))
+	download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
 	download.start()
 
 def main(mothership_url, count):
@@ -263,7 +267,7 @@ def main(mothership_url, count):
 		for slave in campaigns.values():
 			os.makedirs(slave.campaign_directory)
 			executable_path = os.path.join(slave.campaign_directory, slave.program)
-			download_queue(slave.campaign_id, slave.download_url, directory, initial_download=True, executable_path=executable_path)
+			download_queue(slave.campaign_id, slave.download_url, directory, slave.sync_dir, [s.name for s in slaves if s.campaign_id == slave.campaign_id], executable_path=executable_path)
 
 		for slave in slaves:
 			slave.start()

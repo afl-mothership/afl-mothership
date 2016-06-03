@@ -1,3 +1,4 @@
+import glob
 import io
 import json
 import os
@@ -116,12 +117,9 @@ def upload(instance_id):
 	instance = models.FuzzerInstance.get(id=instance_id)
 	campaign = instance.campaign
 	data_dir = current_app.config['DATA_DIRECTORY']
-	instance_queue_dir = os.path.join(data_dir, secure_filename(campaign.name), 'sync_dir', secure_filename(instance.name))
-	os.makedirs(instance_queue_dir, exist_ok=True)
-	tar = tarfile.open(fileobj=request.files['file'], mode='r:')
-	for file in tar.getmembers():
-		tar.extract(file, instance_queue_dir)
-	tar.close()
+	sync_dir = os.path.join(data_dir, secure_filename(campaign.name), 'sync_dir')
+	os.makedirs(sync_dir, exist_ok=True)
+	request.files['file'].save(os.path.join(sync_dir, secure_filename(instance.name) + '.tar'))
 	return jsonify(
 		upload_in=current_app.config['UPLOAD_FREQUENCY'],
 	)
@@ -130,12 +128,15 @@ def upload(instance_id):
 @fuzzers.route('/fuzzers/download/<int:campaign_id>', methods=['GET'])
 def download(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
+	sync_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'sync_dir', '*.tar')
 	return jsonify(
 		afl=request.host_url[:-1] + url_for('fuzzers.download_afl'),
 		executable=request.host_url[:-1] + url_for('fuzzers.download_executable', campaign_id=campaign.id),
 		libraries=request.host_url[:-1] + url_for('fuzzers.download_libraries', campaign_id=campaign.id),
 		testcases=request.host_url[:-1] + url_for('fuzzers.download_testcases', campaign_id=campaign.id),
-		sync_dir=request.host_url[:-1] + url_for('fuzzers.download_syncdir', campaign_id=campaign.id),
+		sync_dirs=[
+			request.host_url[:-1] + url_for('fuzzers.download_syncdir', campaign_id=campaign.id, filename=os.path.basename(filename)) for filename in glob.glob(sync_dir)
+		],
 		sync_in=current_app.config['DOWNLOAD_FREQUENCY'],
 	)
 
@@ -146,23 +147,12 @@ def download_testcases(campaign_id):
 	testcases_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], testcases_dir)
 	return serve_directory_tar(testcases_local_dir, testcases_dir)
 
-@fuzzers.route('/fuzzers/download/<int:campaign_id>/syncdir.tar', methods=['GET'])
-def download_syncdir(campaign_id):
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/<filename>', methods=['GET'])
+def download_syncdir(campaign_id, filename):
 	campaign = models.Campaign.get(id=campaign_id)
-	syncdir = os.path.join(secure_filename(campaign.name), 'sync_dir')
-	syncdir_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], syncdir)
-	# tarfile is super slow (10-50x) for large tars so use native tar
-	with tempfile.NamedTemporaryFile(prefix='afl_syncdir') as file:
-		try:
-			cwd = current_app.config['DATA_DIRECTORY']
-			arcname = os.path.join(secure_filename(campaign.name), 'sync_dir')
-			errorcode = subprocess.call(['tar', 'cf', file.name, arcname, '--exclude=.*'], cwd=cwd)
-		except FileNotFoundError:
-			errorcode = 404
-		if not errorcode:
-			return send_file(file.name)
-	print('Native taring failed: %d' % errorcode)
-	return serve_directory_tar(syncdir_local_dir, syncdir)
+	syncdir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'sync_dir')
+	tar = os.path.join(syncdir, secure_filename(filename.rsplit('.', 1)[0]) + '.tar')
+	return send_file(os.path.abspath(tar))
 
 @fuzzers.route('/fuzzers/download/<int:campaign_id>/libraries.tar', methods=['GET'])
 def download_libraries(campaign_id):
