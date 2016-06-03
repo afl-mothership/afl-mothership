@@ -78,7 +78,7 @@ def get_distinct(campaign, consider_unique, **crash_filter):
 	return r
 
 
-def graph(title, series, chart_type='line'):
+def graph(title, series, chart_type='line', legend=True):
 	return jsonify(
 		chart={
 			'type': chart_type
@@ -89,7 +89,7 @@ def graph(title, series, chart_type='line'):
 		series=[{
 			'name': data[0],
 			'data': data[1],
-			'type': data[2] if data[2:] else chart_type
+			'type': data[2] if data[2:] else chart_type,
 		} for data in series],
 		xAxis={
 			'type': 'datetime',
@@ -101,6 +101,9 @@ def graph(title, series, chart_type='line'):
 			'title': {
 				'text': title
 			}
+		},
+		legend={
+			'enabled': legend
 		}
 	)
 
@@ -134,7 +137,7 @@ def snapshot_property(campaign_id, property_name):
 			(snapshot.unix_time - start) * 1000,
 			getattr(snapshot, property_name)
 		] for snapshot in fuzzer.snapshots]
-	) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)])
+	) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)], legend=False)
 
 
 @graphs.route('/graph')

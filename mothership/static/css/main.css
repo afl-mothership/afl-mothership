@@ -57,3 +57,9 @@ th.shrink {
     text-align: center;
     /*padding-top: 30px;*/
 }
+
+.fullchart{
+    height: 100%;
+    width:100%;
+    position:absolute;
+}

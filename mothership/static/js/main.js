@@ -13,6 +13,8 @@ function durationFormatter(x){
 	return s
 }
 
+var downloadButtons = Highcharts.getOptions().exporting.buttons.contextButton.menuItems.splice(2);
+
 $('div[data-graph]').each(function(){
 	var that = this;
 	var id = $(this).attr('id');
@@ -49,10 +51,28 @@ $('div[data-graph]').each(function(){
                 enabled: false
             }
             data.exporting = {
-            	scale: 10,
-            	sourceWidth: 1100,
-            	sourceHeight: 400,
-            	filename: data.title.text
+            	//scale: 10,
+            	sourceWidth: that.offsetWidth,
+            	sourceHeight: that.offsetHeight,
+            	filename: data.title.text,
+            	buttons: {
+					contextButton: {
+						enabled: false
+					},
+					exportButton: {
+						text: 'Download',
+						_titleKey: 'contextButtonTitle',
+						// Use only the download related menu items from the default context button
+						menuItems: downloadButtons
+					},
+					printButton: {
+						text: 'Open',
+						_titleKey: 'openChart',
+						onclick: function () {
+							window.location = 'http://localhost:5000/graph?url=' + source;
+						}
+					}
+				}
             }
             $(that).highcharts(data);
 		}
