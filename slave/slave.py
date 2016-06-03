@@ -19,7 +19,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 DEBUG = False
-SUBMIT_FREQUENCY = 15
+SUBMIT_FREQUENCY = 60
 
 
 class tempdir:
