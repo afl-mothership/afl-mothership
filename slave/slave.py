@@ -206,7 +206,7 @@ class MothershipSlave:
 				with open(crash_path, 'rb') as crash_file:
 					requests.post(self.submit_crash + '?time=%d' % os.path.getmtime(crash_path), files={'file': crash_file})
 
-		except FileNotFoundError as e:
+		except Exception as e:
 			# File not created yet
 			logger.warn(e)
 
