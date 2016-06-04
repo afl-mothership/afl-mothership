@@ -69,7 +69,7 @@ $('div[data-graph]').each(function(){
 						text: 'Open',
 						_titleKey: 'openChart',
 						onclick: function () {
-							window.location = 'http://localhost:5000/graph?url=' + source;
+							window.open('/graph?url=' + source), '_target';
 						}
 					}
 				}
