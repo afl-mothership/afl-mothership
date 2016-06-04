@@ -31,7 +31,8 @@ class tempdir:
 		return self.dir
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
-		shutil.rmtree(self.dir)
+		#shutil.rmtree(self.dir)
+		pass
 
 
 def optimistic_parse(value):
@@ -140,7 +141,7 @@ class MothershipSlave:
 			self.program_args
 		)
 
-		logger.info('Upload in %d', self.upload_in)
+		logger.info('Upload in %d', self.upload_in )
 		self.upload_timer = threading.Timer(self.upload_in, self.upload_queue)
 
 		self.submit_timer = threading.Timer(SUBMIT_FREQUENCY, self.submit)
@@ -152,16 +153,22 @@ class MothershipSlave:
 	def upload_queue(self):
 		logger.info('Uploading queue')
 
-		queue_tar = os.path.join(self.own_dir, 'queue.tar.gz')
-		with tarfile.open(queue_tar, 'w:') as tar:
-			tar.add(os.path.join(self.own_dir, 'queue'), arcname='queue')
-		with open(queue_tar, 'rb') as f:
-			response = requests.post(self.upload_url, files={'file': f})
+		try:
+			queue_tar = os.path.join(self.own_dir, 'queue.tar.gz')
+			with tarfile.open(queue_tar, 'w:') as tar:
+				tar.add(os.path.join(self.own_dir, 'queue'), arcname='queue')
+			with open(queue_tar, 'rb') as f:
+				response = requests.post(self.upload_url, files={'file': f})
 
-		upload_in = response.json()['upload_in']
-		logger.info('Scheduling re-upload in %d', upload_in)
-		self.upload_timer = threading.Timer(upload_in, self.upload_queue)
-		self.upload_timer.start()
+			upload_in = response.json()['upload_in']
+			logger.info('Scheduling re-upload in %d', upload_in)
+			self.upload_timer = threading.Timer(upload_in, self.upload_queue)
+			self.upload_timer.start()
+		except Exception as e:
+			logger.warn(e)
+			logger.warn('Retrying in 1 minute')
+			self.upload_timer = threading.Timer(60, self.upload_queue)
+			self.upload_timer.start()
 
 	def submit(self):
 		logger.info('Submitting status')
@@ -219,45 +226,55 @@ class MothershipSlave:
 download = None
 def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, executable_path=None):
 	logger.info('Downloading campaign data from %s' % download_url)
-	response = requests.get(download_url).json()
 
-	if executable_path:
-		afl = os.path.join(directory, 'afl-fuzz')
-		if not os.path.exists(afl):
-			urllib_request.urlretrieve(response['afl'], filename=afl)
-			os.chmod(afl, 0o755)
+	try:
+		response = requests.get(download_url).json()
 
-		urllib_request.urlretrieve(response['executable'], filename=executable_path)
-		os.chmod(executable_path, 0o755)
+		if executable_path:
+			afl = os.path.join(directory, 'afl-fuzz')
+			if not os.path.exists(afl):
+				urllib_request.urlretrieve(response['afl'], filename=afl)
+				os.chmod(afl, 0o755)
 
-		testcases_tar = os.path.join(directory, 'libraries_%d.tar.gz' % campaign_id)
-		urllib_request.urlretrieve(response['libraries'], filename=testcases_tar)
-		with tarfile.open(testcases_tar, 'r:') as tar:
-			tar.extractall(directory)
+			urllib_request.urlretrieve(response['executable'], filename=executable_path)
+			os.chmod(executable_path, 0o755)
 
-		testcases_tar = os.path.join(directory, 'testcases_%d.tar.gz' % campaign_id)
-		urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
-		with tarfile.open(testcases_tar, 'r:') as tar:
-			tar.extractall(directory)
+			testcases_tar = os.path.join(directory, 'libraries_%d.tar.gz' % campaign_id)
+			urllib_request.urlretrieve(response['libraries'], filename=testcases_tar)
+			with tarfile.open(testcases_tar, 'r:') as tar:
+				tar.extractall(directory)
 
-	for download_sync_dir in response['sync_dirs']:
-		sync_dir_name = os.path.basename(download_sync_dir).rsplit('.', 1)[0]
-		if sync_dir_name in skip_dirs:
-			continue
-		extract_path = os.path.join(sync_dir, sync_dir_name)
-		try:
-			os.makedirs(extract_path)
-		except os.error as e:
-			logger.warn(e)
-		tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
-		urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
-		with tarfile.open(tar_path, 'r:') as tar:
-			tar.extractall(extract_path)
+			testcases_tar = os.path.join(directory, 'testcases_%d.tar.gz' % campaign_id)
+			urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
+			with tarfile.open(testcases_tar, 'r:') as tar:
+				tar.extractall(directory)
 
-	logger.info('Scheduling re-download in %d', response['sync_in'])
-	global download
-	download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
-	download.start()
+		for download_sync_dir in response['sync_dirs']:
+			sync_dir_name = os.path.basename(download_sync_dir).rsplit('.', 1)[0]
+			if sync_dir_name in skip_dirs:
+				continue
+			extract_path = os.path.join(sync_dir, sync_dir_name)
+			try:
+				os.makedirs(extract_path)
+			except os.error as e:
+				logger.warn(e)
+			tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
+			urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
+			with tarfile.open(tar_path, 'r:') as tar:
+				tar.extractall(extract_path)
+
+		logger.info('Scheduling re-download in %d', response['sync_in'])
+		global download
+		download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
+		download.start()
+
+	except Exception as e:
+		logger.warn(e)
+		logger.warn('Retrying in 1 minute')
+		global download
+		download = threading.Timer(60, download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
+		download.start()
+
 
 def main(mothership_url, count):
 	with tempdir('mothership_afl_') as directory:
