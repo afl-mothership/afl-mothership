@@ -43,6 +43,47 @@
 #}-->
 	</div>
 
+	<div class="box">
+		<div class="box-title">Fuzzers</div>
+
+		<table class="table table-condensed table-hover">
+			<thead>
+				<tr>
+					<th>ID</th>
+					<th>Start Time</th>
+					<th>Last Update</th>
+					<th>Cycles Done</th>
+					<th>Execs Done</th>
+					<th>Paths Found</th>
+					<th>Paths Imported</th>
+					<th>Bitmap Coverage</th>
+					<th>Last Path</th>
+					<th>Last Crash</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for fuzzer in campaign.fuzzers %}
+				{% if fuzzer.started %}
+				<tr>
+					<td>{{ fuzzer.id }}</td>
+					<td>{{ fuzzer.start_time|datetime }}</td>
+					<td>{{ fuzzer.last_update|datetime }}</td>
+					<td>{{ fuzzer.cycles_done }}</td>
+					<td>{{ fuzzer.execs_done }}</td>
+					<td>{{ fuzzer.paths_found }}</td>
+					<td>{{ fuzzer.paths_imported }}</td>
+					<td>{{ fuzzer.bitmap_cvg }}%</td>
+					<td>{{ fuzzer.last_path|datetime }}</td>
+					<td>{{ fuzzer.last_crash|datetime }}</td>
+				</tr>
+				{% endif %}
+			{% endfor %}
+			</tbody>
+
+		</table>
+
+	</div>
+
 
 	<div class="box">
 		<div class="box-title">Crashes</div>

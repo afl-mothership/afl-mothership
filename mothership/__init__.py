@@ -6,6 +6,7 @@ __email__ = 'simon@uint8.me'
 __version__ = '1.0'
 
 import os
+import datetime
 from flask import Flask
 from webassets.loaders import PythonLoader as PythonAssetsLoader
 
@@ -37,6 +38,10 @@ def create_app(object_name):
 	"""
 
 	app = Flask(__name__)
+
+	@app.template_filter('datetime')
+	def datetimeformat(value, format='%d/%m/%y %H:%M %p'):
+		return datetime.datetime.utcfromtimestamp(value).strftime(format)
 
 	app.config.from_object(object_name)
 
