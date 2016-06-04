@@ -252,7 +252,7 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 		tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
 		urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
 		with tarfile.open(tar_path, 'r:') as tar:
-			tar.extractall(sync_dir)
+			tar.extractall(extract_path)
 
 	logger.info('Scheduling re-download in %d', response['sync_in'])
 	global download
