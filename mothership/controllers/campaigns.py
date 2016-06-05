@@ -20,10 +20,43 @@ def list_campaigns():
 @campaigns.route('/campaigns/new', methods=['GET', 'POST'])
 def new_campaign():
 	form = forms.CampaignForm()
+	form.copy_of.choices = [(-1, 'None')] + [(c.id, c.name) for c in models.Campaign.all()]
 	if form.validate_on_submit():
 		model = models.Campaign(form.name)
 		form.populate_obj(model)
 		model.put()
+
+		copyof = models.Campaign.get(id=form.copy_of.data)
+		other = None
+		if copyof:
+			other = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(copyof.name))
+		dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(model.name))
+		os.makedirs(dir)
+		if form.executable.has_file():
+			form.executable.data.save(os.path.join(dir, 'executable'))
+		elif other:
+			shutil.copy(os.path.join(other, 'executable'), os.path.join(dir, 'executable'))
+
+		libs = os.path.join(dir, 'libraries')
+		if form.libraries.has_file():
+			os.makedirs(libs)
+			for lib in request.files.getlist('libraries'):
+				lib.save(os.path.join(libs, lib.filename))
+		elif other:
+			shutil.copytree(os.path.join(other, 'libraries'), libs)
+		else:
+			os.makedirs(libs)
+
+		tests = os.path.join(dir, 'testcases')
+		if form.testcases.has_file():
+			os.makedirs(tests)
+			for test in request.files.getlist('testcases'):
+				test.save(os.path.join(tests, test.filename))
+		elif other:
+			shutil.copytree(os.path.join(other, 'testcases'), tests)
+		else:
+			os.makedirs(tests)
+
 		flash('Campaign created', 'success')
 		return redirect(request.args.get('next') or url_for('campaigns.campaign', campaign_id=model.id))
 	return render_template('new-campaign.html', form=form)
@@ -58,13 +91,18 @@ def delete(campaign_id):
 	# TODO
 	if request.method == 'POST':
 		campaign_model = models.Campaign.get(id=campaign_id)
+		if not campaign_model:
+			return 'Campaign not found', 404
 		for fuzzer in campaign_model.fuzzers:
 			fuzzer.snapshots.delete()
 			fuzzer.crashes.delete()
 		campaign_model.fuzzers.delete()
 		campaign_model.delete()
 		dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name))
-		shutil.rmtree(dir)
+		try:
+			shutil.rmtree(dir)
+		except FileNotFoundError:
+			pass
 		flash('Campaign deleted', 'success')
 		return redirect(url_for('campaigns.list_campaigns'))
 	else:

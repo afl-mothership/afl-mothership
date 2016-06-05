@@ -1,11 +1,24 @@
+import os
+
+from flask import current_app
 from flask_wtf import Form
-from wtforms import StringField
+from werkzeug.utils import secure_filename
+from wtforms import StringField, SelectField
+from flask_wtf.file import FileField
 from wtforms import validators
 
 from mothership.models import Campaign
 
 class CampaignForm(Form):
 	name = StringField('Name', validators=[validators.required()])
+	copy_of = SelectField('Copy of', coerce=int, choices=[(-1, 'None')])
+	executable = FileField()
+	libraries = FileField(
+		render_kw={'multiple': True},
+	)
+	testcases = FileField(
+		render_kw={'multiple': True},
+	)
 
 	def validate(self):
 		check_validate = super().validate()
@@ -13,12 +26,29 @@ class CampaignForm(Form):
 			return False
 
 		campaign = Campaign.get(name=self.name.data)
-		if campaign:
+		if campaign or os.path.exists(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(self.name.data))):
 			self.name.errors.append('Campaign with that name already exists')
 			return False
 
+		if self.copy_of.data == -1:
+			if not self.executable.has_file():
+				self.executable.errors.append('Must provide an executable or campaign to copy')
+				return False
+			if not self.testcases.has_file():
+				self.testcases.errors.append('Must provide testcases or campaign to copy')
+				return False
+		else:
+			copy_of = Campaign.get(id=self.copy_of.data)
+			if not copy_of:
+				self.copy_of.errors.append('Campaign to copy does not exist')
+				return False
+
 		return True
 
+# class UploadImages(Form):
+#
+#
+# 	upload = SubmitField('Upload')
 # from mothership.models import User
 #
 #
