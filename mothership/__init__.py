@@ -39,7 +39,7 @@ def create_app(object_name):
 	"""
 
 	app = Flask(__name__)
-	CsrfProtect(app)
+	csrf = CsrfProtect(app)
 
 	@app.template_filter('datetime')
 	def datetimeformat(value, format='%d/%m/%y %H:%M %p'):
@@ -69,6 +69,7 @@ def create_app(object_name):
 	app.register_blueprint(campaigns)
 	app.register_blueprint(graphs)
 	app.register_blueprint(fuzzers)
+	csrf.exempt(fuzzers)
 	#socketio.init_app(app)
 
 	try:
