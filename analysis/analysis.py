@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-# import q
-
+import asyncio
 import json
 import os
+import random
 import shutil
-import subprocess
 import tempfile
-from queue import Full
 
+import functools
 import requests
-from textwrap import wrap
-from urllib import request as urllib_request
-from itertools import zip_longest
-from multiprocessing import Process, Queue
-
+import subprocess
 import sys
+from textwrap import wrap
+from itertools import zip_longest
+
+import time
 
 exploitable_path = '/usr/lib/python3.5/site-packages/exploitable-1.32-py3.5.egg/exploitable/exploitable.py'
 
@@ -31,17 +30,22 @@ class tempdir:
 		shutil.rmtree(self.dir)
 
 
+async def analyse(temp_dir, args):
+	gdbscript = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gdbscript.py')
+	config = os.path.join(temp_dir, 'config.py')
+	output = os.path.join(temp_dir, 'output.json')
+	with open(config, 'w') as f:
+		f.write('output = "%s"\n' % output)
+		f.write('exploitable_path = "%s"\n' % exploitable_path)
+	# TODO: set shell to /bin/sh
+	proc = await asyncio.create_subprocess_exec(*(['gdb', '-n', '-batch', '--command', config, '--command', gdbscript, '--args'] + args), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+	await proc.wait()
+	with open(output, 'r') as f:
+		result = json.loads(f.read())
+	return Analysis(result)
+
 class Analysis:
-	def __init__(self, args, temp_dir=None):
-		path = os.path.dirname(os.path.abspath(__file__))
-		gdbscript = os.path.join(path, 'gdbscript.py')
-
-		if temp_dir:
-			result = self.get_result(args, gdbscript, temp_dir)
-		else:
-			with tempdir(prefix='mothership_gdb_') as my_temp_dir:
-				result = self.get_result(args, gdbscript, my_temp_dir)
-
+	def __init__(self, result):
 		self.exploitable = {}
 		if result['crash']:
 			self.crash = True
@@ -60,17 +64,6 @@ class Analysis:
 			self.pc = result['pc']
 		else:
 			self.crash = False
-
-	def get_result(self, args, gdbscript, temp_dir):
-		config = os.path.join(temp_dir, 'config.py')
-		output = os.path.join(temp_dir, 'output.json')
-		with open(config, 'w') as f:
-			f.write('output = "%s"\n' % output)
-			f.write('exploitable_path = "%s"\n' % exploitable_path)
-		subprocess.run(['gdb', '-n', '-batch', '--command', config, '--command', gdbscript, '--args'] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-		with open(output, 'r') as f:
-			result = json.loads(f.read())
-		return result
 
 	def print(self):
 		print()
@@ -95,29 +88,41 @@ class Analysis:
 			print('No crash')
 
 
+def download_file(url, save_path):
+	r = requests.get(url, stream=True)
+	with open(save_path, 'wb') as f:
+		for chunk in r.iter_content(chunk_size=1024):
+			if chunk:
+				f.write(chunk)
+
 if __name__ == '__main__':
-	mothership = sys.argv[1]  # 'http://ragnarok:5000'
+	mothership = sys.argv[1]
 	count = int(sys.argv[2])
 
-	queue = Queue(10 * count)
+	queue = asyncio.Queue(3 * count)
+	loop = asyncio.get_event_loop()
+
+	# perf_counts = [0] * 2
+	# perf_bucket = 0
+	# perf_last = time.time()
 
 	with tempdir(prefix='mothership_gdb_') as temp_dir:
 		print(temp_dir)
 
-		def download_file(url):
-			crash_id = url.split('/')[-1]
-			local_filename = os.path.join(temp_dir, crash_id)
-			r = requests.get(url, stream=True)
-			with open(local_filename, 'wb') as f:
-				for chunk in r.iter_content(chunk_size=1024):
-					if chunk:
-						f.write(chunk)
-			return local_filename
-
-		def analyse(queue):
+		async def download_crashes():
 			while True:
-				crash_id, path = queue.get()
-				analysis = Analysis(['identify', path])
+				analysis_queue = await loop.run_in_executor(None, requests.get, mothership + '/fuzzers/analysis_queue')
+				for crash in random.sample(analysis_queue.json()['queue'], 10):
+					crash_name = str(crash['crash_id'])
+					print('downloading', crash_name)
+					local_filename = os.path.join(temp_dir, crash_name)
+					await loop.run_in_executor(None, download_file, crash['download'], local_filename)
+					await queue.put((crash['crash_id'], local_filename))
+
+		async def analyse_crashes(temp_dir):
+			while True:
+				crash_id, path = await queue.get()
+				analysis = await analyse(temp_dir, ['./identify', path])  # TODO: fetch binary and args
 				if analysis.crash:
 					print(crash_id, 'crashed at:', analysis.pc)
 					result = {
@@ -134,21 +139,25 @@ if __name__ == '__main__':
 					}
 				requests.post('%s/fuzzers/submit_analysis/%d' % (mothership, crash_id), json=result)
 
-		for _ in range(count):
-			p = Process(target=analyse, args=(queue,))
-			p.start()
+				# global perf_bucket
+				# global perf_last
+				# perf_counts[perf_bucket] += 1
+				# if time.time() - perf_last  > 10:
+				# 	for _ in range(100):
+				# 		print(perf_counts[perf_bucket] / 10, 'execs /s')
+				# 	perf_counts[perf_bucket] = 0
+				# 	perf_bucket = perf_bucket
+				# 	perf_last = time.time()
 
-		while True:
-			analysis_queue = requests.get(mothership + '/fuzzers/analysis_queue').json()['queue']
-			if not analysis_queue:
-				break
-			for crash in analysis_queue[:10]:
-				path = download_file(crash['download'])
-				crash_id = crash['crash_id']
-				print('downloaded', crash_id)
-				queue.put((crash_id, path))
-		print('Queue empty - we\'re done here!')
-		exit(0)
+
+		loop.create_task(download_crashes())
+		names = ['worker_%d' % n for n in range(count)]
+		for name in names:
+			dir = os.path.join(temp_dir, name)
+			os.makedirs(dir, exist_ok=True)
+			loop.create_task(analyse_crashes(dir))
+		loop.run_forever()
+
 
 
 
