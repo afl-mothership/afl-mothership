@@ -225,6 +225,7 @@ class MothershipSlave:
 
 download = None
 def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, executable_path=None):
+	global download
 	logger.info('Downloading campaign data from %s' % download_url)
 
 	try:
@@ -264,14 +265,12 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 				tar.extractall(extract_path)
 
 		logger.info('Scheduling re-download in %d', response['sync_in'])
-		global download
 		download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
 		download.start()
 
 	except Exception as e:
 		logger.warn(e)
 		logger.warn('Retrying in 1 minute')
-		global download
 		download = threading.Timer(60, download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
 		download.start()
 
