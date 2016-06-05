@@ -113,7 +113,7 @@ def graph(title, series, chart_type='line', legend=True):
 @graphs.route('/graphs/campaign/<int:campaign_id>/aggregated')
 def aggregated(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
-	if not campaign.started or not models.Crash.get(campaign_id=campaign_id):
+	if not campaign.started or not models.Crash.get(campaign_id=campaign_id, analyzed=True):
 		return jsonify()
 	return graph('Crashes', [
 		#('Distinct Addresses', get_distinct(campaign, 'address')),
