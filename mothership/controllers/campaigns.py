@@ -50,7 +50,7 @@ def campaign(campaign_id):
 		else_=4
 	))
 	heisenbugs = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=False)
-	return render_template('campaign.html', header_form=CampaignHeaderForm(), campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs)
+	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs)
 
 
 @campaigns.route('/campaigns/delete/<int:campaign_id>', methods=['GET', 'POST'])

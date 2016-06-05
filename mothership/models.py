@@ -102,11 +102,11 @@ class Campaign(Model, db.Model):
 
 	@property
 	def num_executions(self):
-		return sum(i.execs_done for i in self.fuzzers)
+		return sum(i.execs_done for i in self.fuzzers if i.started)
 
 	@property
 	def num_crashes(self):
-		return sum(i.unique_crashes for i in self.fuzzers)
+		return sum(i.unique_crashes for i in self.fuzzers if i.started)
 
 
 class FuzzerInstance(Model, db.Model):
@@ -159,7 +159,7 @@ class FuzzerInstance(Model, db.Model):
 
 	@property
 	def active(self):
-		return time.time() - self.last_update < 60 * 10
+		return self.started and time.time() - self.last_update < 60 * 10
 
 class FuzzerSnapshot(Model, db.Model):
 	__tablename__ = 'snapshot'
