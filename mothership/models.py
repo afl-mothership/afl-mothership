@@ -1,5 +1,6 @@
 import json
 
+import time
 from flask.ext.sqlalchemy import SQLAlchemy
 import sqlalchemy.types as types
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -95,6 +96,18 @@ class Campaign(Model, db.Model):
 	def started(self):
 		return bool(self.fuzzers.filter(FuzzerInstance.last_update != None).first())
 
+	@property
+	def active_fuzzers(self):
+		return sum(i.active for i in self.fuzzers)
+
+	@property
+	def num_executions(self):
+		return sum(i.execs_done for i in self.fuzzers)
+
+	@property
+	def num_crashes(self):
+		return sum(i.unique_crashes for i in self.fuzzers)
+
 
 class FuzzerInstance(Model, db.Model):
 	__tablename__ = 'instance'
@@ -143,6 +156,10 @@ class FuzzerInstance(Model, db.Model):
 	@property
 	def started(self):
 		return bool(self.last_update)
+
+	@property
+	def active(self):
+		return time.time() - self.last_update < 60 * 10
 
 class FuzzerSnapshot(Model, db.Model):
 	__tablename__ = 'snapshot'

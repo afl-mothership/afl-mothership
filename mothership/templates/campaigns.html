@@ -13,8 +13,8 @@
                 <th>Name</th>
                 <th>Status</th>
                 <th>Active instances</th>
-                <th>Description</th>
-                <th>Tool</th>
+                <!--<th>Description</th>-->
+                <!--<th>Tool</th>-->
                 <th>Executions</th>
                 <th>Crashes</th>
             </tr>
@@ -24,11 +24,11 @@
                 <tr class="tr_link" data-href="{{ url_for('campaigns.campaign', campaign_id=campaign.id) }}">
                     <td><b>{{ campaign.name }}</b></td>
                     <td>{% if campaign.active %}Active{% else %}Inactive{% endif %}</td>
-                    <td>A</td>
-                    <td>A</td>
-                    <td>A</td>
-                    <td>A</td>
-                    <td>A</td>
+                    <td>{{ campaign.active_fuzzers }}</td>
+                    <!--<td>A</td>-->
+                    <!--<td>A</td>-->
+                    <td>{{ campaign.num_executions }}</td>
+                    <td>{{ campaign.num_crashes }}</td>
                 </tr>
             {% endfor %}
             </tbody>
