@@ -1,10 +1,13 @@
+import shutil
 import time
 import os
-from flask import Blueprint, render_template, flash, redirect, request, url_for, jsonify
+from flask import Blueprint, render_template, render_template_string, flash, redirect, request, url_for, jsonify, current_app
 from datetime import datetime
 from sqlalchemy import case
+from werkzeug.utils import secure_filename
 
 from mothership import forms, models
+from mothership.forms import CampaignHeaderForm
 from mothership.utils import format_timedelta_secs, pretty_size_dec, format_ago
 
 
@@ -15,22 +18,30 @@ campaigns = Blueprint('campaigns', __name__)
 def list_campaigns():
 	return render_template('campaigns.html', campaigns=models.Campaign.query.all())
 
-@campaigns.route('/campaigns/new', methods=["GET", "POST"])
+@campaigns.route('/campaigns/new', methods=['GET', 'POST'])
 def new_campaign():
 	form = forms.CampaignForm()
 	if form.validate_on_submit():
 		model = models.Campaign(form.name)
 		form.populate_obj(model)
 		model.put()
-		flash("Campaign created", "success")
-		return redirect(request.args.get("next") or url_for("campaigns.campaign", campaign_id=model.id))
+		flash('Campaign created', 'success')
+		return redirect(request.args.get('next') or url_for('campaigns.campaign', campaign_id=model.id))
 	return render_template('new-campaign.html', form=form)
 
-@campaigns.route('/campaigns/<int:campaign_id>')
+@campaigns.route('/campaigns/<int:campaign_id>', methods=['GET', 'POST'])
 def campaign(campaign_id):
 	campaign_model = models.Campaign.get(id=campaign_id)
 	if not campaign_model:
 		return 'Campaign not found', 404
+	if request.method == 'POST':
+		if 'delete' in request.form:
+			return redirect(url_for('campaigns.delete', campaign_id=campaign_id))
+		if 'enable' in request.form:
+			models.Campaign.update_all(active=False)
+			campaign_model.active = request.form['enable'].lower() == 'true'
+			campaign_model.put()
+
 	crashes = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace).order_by(case({
 		'EXPLOITABLE': 0,
 		'PROBABLY_EXPLOITABLE': 1,
@@ -40,8 +51,29 @@ def campaign(campaign_id):
 		else_=4
 	))
 	heisenbugs = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=False)
-	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs)
+	return render_template('campaign.html', header_form=CampaignHeaderForm(), campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs)
 
+
+@campaigns.route('/campaigns/delete/<int:campaign_id>', methods=['GET', 'POST'])
+def delete(campaign_id):
+	# TODO
+	if request.method == 'POST':
+		campaign_model = models.Campaign.get(id=campaign_id)
+		for fuzzer in campaign_model.fuzzers:
+			fuzzer.snapshots.delete()
+			fuzzer.crashes.delete()
+		campaign_model.fuzzers.delete()
+		campaign_model.delete()
+		dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name))
+		shutil.rmtree(dir)
+		flash('Campaign deleted', 'success')
+		return redirect(url_for('campaigns.list_campaigns'))
+	else:
+		html = '<form method="post">' \
+			'<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>' \
+			'<button type="submit" class="btn btn-danger" name="delete">Confirm</button>' \
+			'</form>'
+		return render_template_string(html)
 
 @campaigns.route('/campaigns/<int:campaign_id>/crashes')
 def analysis_queue_campaign(campaign_id):
@@ -58,14 +90,12 @@ def analysis_queue_campaign(campaign_id):
 	])
 
 
-@campaigns.route('/campaigns/update/<int:campaign_id>', methods=["GET", "POST"])
+@campaigns.route('/campaigns/update/<int:campaign_id>', methods=['GET', 'POST'])
 def update(campaign_id):
 	campaign_model = models.Campaign.get(id=campaign_id)
 	if 'enable' in request.args:
 		# TODO: allow multiple active campaigns
-		models.Campaign.update_all(active=False)
-		campaign_model.active = request.args['enable'].lower() == 'true'
-		campaign_model.put()
+
 		return redirect(url_for('campaigns.campaign', campaign_id=campaign_id))
 
 	return '', 400
@@ -128,3 +158,5 @@ def data(campaign_id):
 	return jsonify(
 		campaign=campaign_data
 	)
+
+

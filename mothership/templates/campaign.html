@@ -4,18 +4,18 @@
 
 {%block body%}
 <div class="container">
-	<div class="row">
-		<div class="col-md-10">
-			<h1>{{ campaign.name }}</h1>
-		</div>
-		<div class="col-md-2 pull-right">
-			<h1>
+	<div id="block3">
+		<h1>{{ campaign.name }}</h1>
+		<div>
+			<form method="post">
+				<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+				<button type="submit" class="btn btn-danger" name="delete">Delete</button>
 				{% if campaign.active %}
-				<a href="{{ url_for('campaigns.update', campaign_id=campaign.id) }}?enable=False" type="button" class="btn btn-danger btn-block">Deactivate</a>
+				<button type="submit" type="button" class="btn btn-warning" name="enable" value="False">Deactivate</button>
 				{% else %}
-				<a href="{{ url_for('campaigns.update', campaign_id=campaign.id) }}?enable=True" type="button" class="btn btn-success btn-block">Activate</a>
+				<button type="submit" type="button" class="btn btn-success" name="enable" value="True">Activate</button>
 				{% endif %}
-			</h1>
+			</form>
 		</div>
 	</div>
 

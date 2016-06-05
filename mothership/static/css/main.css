@@ -2,6 +2,20 @@
 	margin-top: 60px;
 }
 
+#block3 {
+  display: table;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#block3 > * {
+  display: table-cell;
+}
+
+#block3 > *:last-child {
+  text-align: right;
+}
+
 .tr_link{
 	cursor:pointer
 }

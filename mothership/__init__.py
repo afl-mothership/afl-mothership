@@ -9,6 +9,7 @@ import os
 import datetime
 from flask import Flask
 from webassets.loaders import PythonLoader as PythonAssetsLoader
+from flask_wtf.csrf import CsrfProtect
 
 from mothership.controllers.main import main
 from mothership.controllers.campaigns import campaigns
@@ -38,6 +39,7 @@ def create_app(object_name):
 	"""
 
 	app = Flask(__name__)
+	CsrfProtect(app)
 
 	@app.template_filter('datetime')
 	def datetimeformat(value, format='%d/%m/%y %H:%M %p'):
