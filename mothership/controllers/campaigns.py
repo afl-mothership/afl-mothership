@@ -7,7 +7,6 @@ from sqlalchemy import case
 from werkzeug.utils import secure_filename
 
 from mothership import forms, models
-from mothership.forms import CampaignHeaderForm
 from mothership.utils import format_timedelta_secs, pretty_size_dec, format_ago
 
 
