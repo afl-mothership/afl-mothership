@@ -154,9 +154,15 @@ class MothershipSlave:
 		logger.info('Uploading queue')
 
 		try:
+			def state_filter(tarinfo):
+				if '.state' in tarinfo.name:
+					return None
+				else:
+					return tarinfo
+
 			queue_tar = os.path.join(self.own_dir, 'queue.tar.gz')
 			with tarfile.open(queue_tar, 'w:') as tar:
-				tar.add(os.path.join(self.own_dir, 'queue'), arcname='queue')
+				tar.add(os.path.join(self.own_dir, 'queue'), arcname='queue', filter=state_filter)
 			with open(queue_tar, 'rb') as f:
 				response = requests.post(self.upload_url, files={'file': f})
 
@@ -262,7 +268,8 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 			tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
 			urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
 			with tarfile.open(tar_path, 'r:') as tar:
-				tar.extractall(extract_path)
+				new_files = [t for t in tar.getmembers() if not os.path.exists(os.path.join(extract_path, t.name))]
+				tar.extractall(extract_path, new_files)
 
 		logger.info('Scheduling re-download in %d', response['sync_in'])
 		download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
