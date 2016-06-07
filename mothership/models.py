@@ -1,8 +1,10 @@
 import json
 
 import time
-from flask.ext.sqlalchemy import SQLAlchemy
 import sqlalchemy.types as types
+from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy import DDL
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
@@ -10,7 +12,14 @@ db = SQLAlchemy()
 db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=db))
 
 def init_db():
-	Campaign.update_all(queue_archive=None)
+	# FIXME
+	try:
+		Campaign.get().executable_name
+	except OperationalError:
+		db.engine.execute(DDL('alter table campaign add column executable_name VARCHAR;'))
+		db.engine.execute(DDL('alter table campaign add column executable_args VARCHAR;'))
+		db.engine.execute(DDL('alter table campaign add column afl_args VARCHAR;'))
+
 
 class JsonType(types.TypeDecorator):
 	impl = types.Text
@@ -87,7 +96,10 @@ class Campaign(Model, db.Model):
 	crashes = db.relationship('Crash', backref='campaign', lazy='dynamic')
 
 	active = db.Column(db.Boolean(), default=False)
-	queue_archive = db.Column(db.String(1024))
+
+	executable_name = db.Column(db.String(512))
+	executable_args = db.Column(db.String(1024))
+	afl_args = db.Column(db.String(1024))
 
 	def __init__(self, name):
 		self.name = name

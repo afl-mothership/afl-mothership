@@ -44,9 +44,9 @@ def register():
 	return jsonify(
 		id=instance.id,
 		name=secure_filename(instance.name),
-		program='./identify',
-		program_args=['@@'],  # TODO
-		args=['-m', '500'],
+		program=campaign.executable_name,
+		program_args=campaign.executable_args.split(' '),  # TODO: add support for spaces
+		args=campaign.afl_args.split(' '),
 
 		campaign_id=campaign.id,
 		campaign_name=secure_filename(campaign.name),

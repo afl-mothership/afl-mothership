@@ -39,6 +39,11 @@ def create_app(object_name):
 	"""
 
 	app = Flask(__name__)
+
+	@app.before_first_request
+	def _run_on_start():
+		init_db()
+
 	csrf = CsrfProtect(app)
 
 	@app.template_filter('datetime')
@@ -77,8 +82,6 @@ def create_app(object_name):
 	except FileExistsError:
 		pass
 
-	@app.before_first_request
-	def _run_on_start():
-		init_db()
+
 
 	return app

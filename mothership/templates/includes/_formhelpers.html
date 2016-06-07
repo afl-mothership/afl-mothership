@@ -1,0 +1,9 @@
+{% macro render_field(field) %}
+{{ field.label }}
+{% if field.errors %}
+{% for e in field.errors %}
+	<p class="help-block">{{ e }}</p>
+{% endfor %}
+{% endif %}
+{{ field(class_="form-control") }}
+{% endmacro %}
