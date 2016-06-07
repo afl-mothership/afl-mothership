@@ -246,9 +246,9 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 			urllib_request.urlretrieve(response['executable'], filename=executable_path)
 			os.chmod(executable_path, 0o755)
 
-			testcases_tar = os.path.join(directory, 'libraries_%d.tar.gz' % campaign_id)
-			urllib_request.urlretrieve(response['libraries'], filename=testcases_tar)
-			with tarfile.open(testcases_tar, 'r:') as tar:
+			libraries_tar = os.path.join(directory, 'libraries_%d.tar.gz' % campaign_id)
+			urllib_request.urlretrieve(response['libraries'], filename=libraries_tar)
+			with tarfile.open(libraries_tar, 'r:') as tar:
 				tar.extractall(directory)
 
 			testcases_tar = os.path.join(directory, 'testcases_%d.tar.gz' % campaign_id)
