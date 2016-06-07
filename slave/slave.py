@@ -10,6 +10,8 @@ import tarfile
 import tempfile
 import threading
 import logging
+import traceback
+
 import requests
 try:
 	from urllib import request as urllib_request
@@ -31,8 +33,7 @@ class tempdir:
 		return self.dir
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
-		#shutil.rmtree(self.dir)
-		pass
+		shutil.rmtree(self.dir)
 
 
 def optimistic_parse(value):
@@ -173,6 +174,7 @@ class MothershipSlave:
 		except Exception as e:
 			logger.warn(e)
 			logger.warn('Retrying in 1 minute')
+			traceback.print_exc()
 			self.upload_timer = threading.Timer(60, self.upload_queue)
 			self.upload_timer.start()
 
@@ -187,7 +189,7 @@ class MothershipSlave:
 			status = {}
 			with open(status_file, 'r') as f:
 				for line in f.readlines():
-					key, value = line.replace('\n', '').split(':')
+					key, value = line.replace('\n', '').split(':', 1)
 					status[key.strip()] = optimistic_parse(value[1:])
 			logger.info('%d - %r' % (self.instance.process.pid, status))
 
@@ -222,6 +224,7 @@ class MothershipSlave:
 		except Exception as e:
 			# File not created yet
 			logger.warn(e)
+			traceback.print_exc()
 
 		self.submit_timer = threading.Timer(SUBMIT_FREQUENCY, self.submit)
 		self.submit_timer.start()
@@ -278,6 +281,7 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 	except Exception as e:
 		logger.warn(e)
 		logger.warn('Retrying in 1 minute')
+		traceback.print_exc()
 		download = threading.Timer(60, download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
 		download.start()
 
