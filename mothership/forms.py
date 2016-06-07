@@ -13,7 +13,7 @@ class CampaignForm(Form):
 	name = StringField('Name', validators=[validators.required()])
 	executable_name = StringField('Executable Name', validators=[validators.required()], default='executable')
 	executable_args = StringField('Executable Args', validators=[validators.required()], default='@@')
-	afl_args = StringField('AFL Args', validators=[validators.required()], default='-m 100 -Z -t 20')
+	afl_args = StringField('AFL Args', validators=[validators.required()], default='-m 100 -t 20')
 	copy_of = SelectField('Copy of', coerce=int, choices=[(-1, 'None')])
 	executable = FileField()
 	libraries = FileField(
