@@ -181,13 +181,17 @@ def serve_directory_tar(local_dir, arcname):
 	return send_file(tardata)
 
 
-@fuzzers.route('/fuzzers/analysis_queue')
-def analysis_queue():
-	return jsonify(queue=[{
-		'campaign_id': crash.campaign_id,
-		'crash_id': crash.id,
-		'download': request.host_url[:-1] + url_for('fuzzers.download_crash', crash_id=crash.id)
-	} for crash in models.Crash.all(analyzed=False)])
+@fuzzers.route('/fuzzers/analysis_queue/<int:campaign_id>')
+def analysis_queue(campaign_id):
+	campaign = models.Campaign.get(id=campaign_id)
+	return jsonify(
+		program=campaign.executable_name,
+		program_args=campaign.executable_args.split(' ') if campaign.executable_args else [],  # TODO: add support for spaces
+		crashes=[{
+			'crash_id': crash.id,
+			'download': request.host_url[:-1] + url_for('fuzzers.download_crash', crash_id=crash.id)
+		} for crash in campaign.crashes.filter_by(analyzed=False)]
+	)
 
 
 @fuzzers.route('/fuzzers/download_crash/<int:crash_id>')
