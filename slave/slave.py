@@ -33,7 +33,8 @@ class tempdir:
 		return self.dir
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
-		shutil.rmtree(self.dir)
+		pass
+		#shutil.rmtree(self.dir)
 
 
 def optimistic_parse(value):
