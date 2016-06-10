@@ -25,6 +25,38 @@
 	</div>
 
 	<div class="box">
+		<div class="box-title">Campaign Info</div>
+
+		<div class="row">
+			<div class="col-md-4">
+				<table class="table table-condensed borderless">
+					<tbody>
+					<tr>
+						<th class="shrink">Executable Name</th>
+						<td>{{ campaign.executable_name }}</td>
+					</tr>
+					<tr>
+						<th class="shrink">Executable Args</th>
+						<td>{{ campaign.executable_args }}</td>
+					</tr>
+					<tr>
+						<th class="shrink">AFL Args</th>
+						<td>{{ campaign.afl_args }}</td>
+					</tr>
+
+					</tbody>
+				</table>
+		</div>
+			<div class="col-md-2"></div>
+			<div class="col-md-6">
+				LDD HERE
+
+			</div>
+		</div>
+
+	</div>
+
+	<div class="box">
 		<div class="box-title">Graphs</div>
 		<div id="crashes" class="chart"
 			 data-graph="{{ url_for('graphs.snapshot_property', campaign_id=campaign.id, property_name='unique_crashes') }}"
