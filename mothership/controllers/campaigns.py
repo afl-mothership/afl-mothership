@@ -73,6 +73,8 @@ def campaign(campaign_id):
 			models.Campaign.update_all(active=False)
 			campaign_model.active = request.form['enable'].lower() == 'true'
 			campaign_model.put()
+		return redirect(url_for('campaigns.campaign', campaign_id=campaign_id))
+
 
 	crashes = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace).order_by(case({
 		'EXPLOITABLE': 0,
