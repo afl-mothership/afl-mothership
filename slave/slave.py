@@ -50,7 +50,7 @@ def optimistic_parse(value):
 
 class AflInstance(threading.Thread):
 
-	def __init__(self, directory, testcases, sync_dir, name, args, program, program_args):
+	def __init__(self, directory, testcases, sync_dir, name, args, program, program_args, core=None):
 		super(AflInstance, self).__init__()
 		self.directory = directory
 		self.testcases = testcases
@@ -59,6 +59,7 @@ class AflInstance(threading.Thread):
 		self.extra_args = args
 		self.program = program
 		self.program_args = program_args
+		self.core = core
 
 		self.process = None
 
@@ -67,6 +68,7 @@ class AflInstance(threading.Thread):
 		        '-i', self.testcases, '-o',
 		        self.sync_dir, '-S', self.name] + \
 		        self.extra_args + \
+				(['-Z', str(self.core)] if self.core is not None else []) + \
 				['--', self.program] + self.program_args
 
 		logger.info('Starting afl with %r' % ' '.join(args))
@@ -93,12 +95,13 @@ class AflInstance(threading.Thread):
 
 class MothershipSlave:
 
-	def __init__(self, mothership_url, directory):
+	def __init__(self, mothership_url, directory, core=None):
 		self.mothership_url = mothership_url
 		self.directory = directory
 		self.submitted_crashes = {'README.txt'}
 		self.snapshot_times = set()
 		self.snapshot_tell = 0
+		self.core = core
 
 		try:
 			logger.info('Registering slave')
@@ -140,7 +143,8 @@ class MothershipSlave:
 			self.name,
 			self.args,
 			os.path.join(self.campaign_directory, self.program),
-			self.program_args
+			self.program_args,
+			core=self.core
 		)
 
 		logger.info('Upload in %d', self.upload_in )
@@ -290,7 +294,7 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 def main(mothership_url, count):
 	with tempdir('mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
-		slaves = [MothershipSlave(mothership_url, directory) for _ in range(count)]
+		slaves = [MothershipSlave(mothership_url, directory, core=core) for core in range(count)]
 		campaigns = {slave.campaign_id: slave for slave in slaves}
 		for slave in campaigns.values():
 			os.makedirs(slave.campaign_directory)
