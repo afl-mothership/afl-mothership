@@ -20,7 +20,7 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-DEBUG = False
+DEBUG = True
 SUBMIT_FREQUENCY = 60
 
 
@@ -80,15 +80,15 @@ class AflInstance(threading.Thread):
 		if DEBUG:
 			self.process = subprocess.Popen(args, env=env)
 		else:
-			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, env=env)
+			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
 			for line in iter(self.process.stdout.readline, ""):
 				if not line:
 					continue
 				sys.stdout.write(str(self.process.pid) + ' - ' + line.decode('ascii'))
 
 		self.process.wait()
-		#if self.process.returncode != 0:
-		#	raise Exception(command, exitCode, output)
+		if self.process.returncode != 0:
+			raise Exception("Process exited with %d" % self.process.returncode)
 
 
 class MothershipSlave:
