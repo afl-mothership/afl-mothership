@@ -27,6 +27,8 @@
 	<div class="box">
 		<div class="box-title">Campaign Info</div>
 
+
+
 		<div class="row">
 			<div class="col-md-4">
 				<table class="table table-condensed borderless">
@@ -46,12 +48,54 @@
 
 					</tbody>
 				</table>
-		</div>
-			<div class="col-md-2"></div>
-			<div class="col-md-6">
-				LDD HERE
-
 			</div>
+			<div class="col-md-4">
+				<form method="post" id="addfiles" enctype="multipart/form-data">
+					<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+					<div class="form-group">
+						<label for="libraries">Add Libraries</label>
+						<input id="libraries" multiple="" name="libraries" onchange="javascript:document.getElementById('addfiles').submit();" type="file">
+						<label for="testcases">Add Testcases</label>
+						<input id="testcases" multiple="" name="testcases" onchange="javascript:document.getElementById('addfiles').submit();" type="file">
+					</div>
+				</form>
+			</div>
+			<div class="col-md-4">
+				<form method="post" enctype="multipart/form-data">
+					<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+					<button type="submit" type="button" class="btn btn-warning" name="reset" value="True">Reset</button>
+				</form>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-4">
+				<h4>Testcases</h4>
+				<table class="table table-striped table-condensed table-hover table-bordered">
+					<tbody>
+					{% for testcase in testcases %}
+						<tr>
+							<td>{{ testcase }}</td>
+						</tr>
+					{% endfor %}
+					</tbody>
+				</table>
+			</div>
+			<!--<div class="col-md-2"></div>-->
+			<!--<div class="col-md-4"></div>-->
+			<div class="col-md-8">
+				<h4>Executable Libraries</h4>
+				<table class="table table-striped table-condensed table-hover table-bordered">
+					<tbody>
+					{% for lib, clazz, path in ldd %}
+						<tr class="{{ clazz }}">
+							<td>{{ lib }}</td>
+							<td>{{ path }}</td>
+						</tr>
+					{% endfor %}
+					</tbody>
+				</table>
+			</div>
+
 		</div>
 
 	</div>

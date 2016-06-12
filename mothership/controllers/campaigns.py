@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 import time
 import os
 from flask import Blueprint, render_template, render_template_string, flash, redirect, request, url_for, jsonify, current_app
@@ -41,7 +42,7 @@ def new_campaign():
 		if form.libraries.has_file():
 			os.makedirs(libs)
 			for lib in request.files.getlist('libraries'):
-				lib.save(os.path.join(libs, lib.filename))
+				lib.save(os.path.join(libs, os.path.basename(lib.filename)))
 		elif other:
 			shutil.copytree(os.path.join(other, 'libraries'), libs)
 		else:
@@ -51,7 +52,7 @@ def new_campaign():
 		if form.testcases.has_file():
 			os.makedirs(tests)
 			for test in request.files.getlist('testcases'):
-				test.save(os.path.join(tests, test.filename))
+				test.save(os.path.join(tests, os.path.basename(test.filename)))
 		elif other:
 			shutil.copytree(os.path.join(other, 'testcases'), tests)
 		else:
@@ -67,14 +68,34 @@ def campaign(campaign_id):
 	if not campaign_model:
 		return 'Campaign not found', 404
 	if request.method == 'POST':
+		dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name))
 		if 'delete' in request.form:
 			return redirect(url_for('campaigns.delete', campaign_id=campaign_id))
 		if 'enable' in request.form:
 			models.Campaign.update_all(active=False)
 			campaign_model.active = request.form['enable'].lower() == 'true'
 			campaign_model.put()
+			flash('Campaign enabled', 'success')
+		if 'reset' in request.form:
+			for fuzzer in campaign_model.fuzzers:
+				fuzzer.snapshots.delete()
+				fuzzer.crashes.delete()
+			campaign_model.fuzzers.delete()
+			flash('Campaign reset', 'success')
+		uploaded = 0
+		for lib in request.files.getlist('libraries'):
+			if lib.filename:
+				lib.save(os.path.join(dir, 'libraries', os.path.basename(lib.filename)))
+				uploaded += 1
+		for test in request.files.getlist('testcases'):
+			if test.filename:
+				test.save(os.path.join(dir, 'testcases', os.path.basename(test.filename)))
+				uploaded += 1
+		if uploaded:
+			flash('Uploaded %d files' % uploaded, 'success')
 		return redirect(url_for('campaigns.campaign', campaign_id=campaign_id))
 
+	# TODO show campaign options, allow editing and show ldd output
 
 	crashes = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace).order_by(case({
 		'EXPLOITABLE': 0,
@@ -85,7 +106,43 @@ def campaign(campaign_id):
 		else_=4
 	))
 	heisenbugs = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=False)
-	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs)
+	ldd = get_ldd(campaign_model)
+	testcases = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'testcases'))
+	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs, testcases=testcases, ldd=ldd)
+
+
+def get_ldd(campaign_model):
+	env = dict(os.environ)
+	if 'LD_LIBRARY_PATH' in env:
+		env['LD_LIBRARY_PATH'] += ':'
+	else:
+		env['LD_LIBRARY_PATH'] = ''
+	env['LD_LIBRARY_PATH'] += os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'libraries')
+	try:
+		p = subprocess.Popen(['ldd', os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'executable')], env=env, stdout=subprocess.PIPE)
+		process_output = p.communicate()
+	except FileNotFoundError:
+		ldd = None
+	else:
+		ldd = []
+		for line in process_output[0].decode('ascii').split('\n'):
+			if not line or line[0] != '\t':
+				continue
+			parts = line.split()
+			if len(parts) < 3:
+				continue
+			found = 'not found' not in line
+			if found:
+				path = parts[2]
+				if path.startswith(current_app.config['DATA_DIRECTORY']):
+					ldd_row = (parts[0], 'info', path.split(os.path.sep, 1)[1])
+				else:
+					ldd_row = (parts[0], '', path)
+			else:
+				ldd_row = (parts[0], 'danger', 'Not Found')
+			if ldd_row not in ldd:
+				ldd.append(ldd_row)
+	return ldd
 
 
 @campaigns.route('/campaigns/delete/<int:campaign_id>', methods=['GET', 'POST'])
