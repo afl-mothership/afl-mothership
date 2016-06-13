@@ -14,7 +14,7 @@
                 <th>Status</th>
                 <th>Active instances</th>
                 <!--<th>Description</th>-->
-                <!--<th>Tool</th>-->
+                <th>Bitmap Coverage</th>
                 <th>Executions</th>
                 <th>Crashes</th>
             </tr>
@@ -26,7 +26,7 @@
                     <td>{% if campaign.active %}Active{% else %}Inactive{% endif %}</td>
                     <td>{{ campaign.active_fuzzers }}</td>
                     <!--<td>A</td>-->
-                    <!--<td>A</td>-->
+                    <td>{{ campaign.bitmap_cvg[0] | round(1) }}%</td>
                     <td>{{ campaign.num_executions }}</td>
                     <td>{{ campaign.num_crashes }}</td>
                 </tr>

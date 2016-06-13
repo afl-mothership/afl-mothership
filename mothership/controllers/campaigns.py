@@ -222,6 +222,8 @@ def stats(campaign_id):
 			last_crash = max(last_crash, instance.last_crash)
 			last_update = max(last_update, instance.last_update)
 	crashes = list(models.Crash.query.filter_by(campaign_id=campaign_id, analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace))
+	cvg = campaign_model.bitmap_cvg
+
 	return jsonify(
 		now=current_time,
 
@@ -243,6 +245,10 @@ def stats(campaign_id):
 		awaiting_analysis=models.Crash.query.filter_by(campaign_id=campaign_id, analyzed=False).count(),
 		analyzed_crashes=models.Crash.query.filter_by(campaign_id=campaign_id, analyzed=True).count(),
 		distinct_crashes=len(crashes),
+
+		bitmap_coverage_mean=cvg[0],
+		bitmap_coverage_stdev=cvg[1],
+		bitmap_coverage_str='%0.1f%% SD=%0.1f' % cvg,
 
 		exploitable=count_crashes(crashes, exploitable='EXPLOITABLE'),
 		probably_exploitable=count_crashes(crashes, exploitable='PROBABLY_EXPLOITABLE'),

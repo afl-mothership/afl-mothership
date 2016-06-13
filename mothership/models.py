@@ -1,9 +1,10 @@
 import json
+import statistics
 
 import time
 import sqlalchemy.types as types
 from flask.ext.sqlalchemy import SQLAlchemy
-from sqlalchemy import DDL
+from sqlalchemy import DDL, desc
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.orm.attributes import InstrumentedAttribute
@@ -106,7 +107,7 @@ class Campaign(Model, db.Model):
 
 	@property
 	def started(self):
-		return bool(self.fuzzers.filter(FuzzerInstance.last_update != None).first())
+		return bool(self.fuzzers.filter(FuzzerInstance.last_update).first())
 
 	@property
 	def active_fuzzers(self):
@@ -119,6 +120,18 @@ class Campaign(Model, db.Model):
 	@property
 	def num_crashes(self):
 		return sum(i.unique_crashes for i in self.fuzzers if i.started)
+
+	@property
+	def bitmap_cvg(self):
+		if not self.started:
+			return 0, 0
+		bitmap_cvgs = []
+		newest = self.fuzzers.order_by(desc(FuzzerInstance.last_update)).first()
+		for fuzzer in self.fuzzers.filter(FuzzerInstance.last_update):
+			if newest.last_update - fuzzer.last_update < 10 * 60:
+				bitmap_cvgs.append(fuzzer.bitmap_cvg)
+		return statistics.mean(bitmap_cvgs), statistics.stdev(bitmap_cvgs) if len(bitmap_cvgs) > 1 else 0.
+
 
 
 class FuzzerInstance(Model, db.Model):
