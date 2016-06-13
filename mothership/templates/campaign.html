@@ -84,6 +84,7 @@
 			<!--<div class="col-md-4"></div>-->
 			<div class="col-md-8">
 				<h4>Executable Libraries</h4>
+				{% if ldd %}
 				<table class="table table-striped table-condensed table-hover table-bordered">
 					<tbody>
 					{% for lib, clazz, path in ldd %}
@@ -94,6 +95,9 @@
 					{% endfor %}
 					</tbody>
 				</table>
+				{% else %}
+				<p>LDD not supported on this platform</p>
+				{% endif %}
 			</div>
 
 		</div>
