@@ -40,7 +40,7 @@ def get_starts(fuzzers):
 	:param fuzzers: the list of fuzzers to compute the start times for
 	:return: the list of start values
 	"""
-	run_times = [(f.start_time, f.snapshots.order_by(desc(models.FuzzerSnapshot.unix_time)).first().unix_time) for f in fuzzers]
+	run_times = [(f.start_time, f.last_update) for f in fuzzers]
 	start, stop = run_times[0]
 	starts = []
 	for run_time, fuzzer in zip(run_times, fuzzers):
@@ -130,13 +130,13 @@ def snapshot_property(campaign_id, property_name):
 	if not campaign.started or not campaign.fuzzers or not any(fuzzer.snapshots.first() for fuzzer in campaign.fuzzers):
 		return jsonify()
 
-	fuzzers = [f for f in campaign.fuzzers.order_by(models.FuzzerInstance.start_time) if f.started]
+	fuzzers = campaign.fuzzers.filter(models.FuzzerInstance.last_update)
 	return graph(property_name.replace('_', ' ').title(), [(
 		fuzzer.name,
 		[[
 			(snapshot.unix_time - start) * 1000,
 			getattr(snapshot, property_name)
-		] for snapshot in fuzzer.snapshots]
+		] for snapshot in fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name))]
 	) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)], legend=False)
 
 
