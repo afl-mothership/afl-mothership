@@ -81,6 +81,15 @@ def campaign(campaign_id):
 				fuzzer.snapshots.delete()
 				fuzzer.crashes.delete()
 			campaign_model.fuzzers.delete()
+			campaign_model.put()
+			try:
+				shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'sync_dir'))
+			except FileNotFoundError:
+				pass
+			try:
+				shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'crashes'))
+			except FileNotFoundError:
+				pass
 			flash('Campaign reset', 'success')
 		uploaded = 0
 		for lib in request.files.getlist('libraries'):
