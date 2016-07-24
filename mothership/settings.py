@@ -11,6 +11,7 @@ class Config(object):
 
 class ProdConfig(Config):
 	ENV = 'prod'
+	#SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://awsuser:yI3HhDk8gtx4dd1R@mothership.cgm5d3hyvt7k.us-east-1.rds.amazonaws.com/mothership'
 	SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://<username>:<password>@<identifier>.amazonaws.com/mothership'
 	CACHE_TYPE = 'simple'
 	ASSETS_DEBUG = True

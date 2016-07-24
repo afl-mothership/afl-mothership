@@ -20,8 +20,9 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-DEBUG = True
+DEBUG = False
 SUBMIT_FREQUENCY = 60
+SNAPSHOT_FREQUENCY = 60
 
 
 class tempdir:
@@ -33,8 +34,7 @@ class tempdir:
 		return self.dir
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
-		pass
-		#shutil.rmtree(self.dir)
+		shutil.rmtree(self.dir)
 
 
 def optimistic_parse(value):
@@ -50,8 +50,9 @@ def optimistic_parse(value):
 
 class AflInstance(threading.Thread):
 
-	def __init__(self, directory, testcases, sync_dir, name, args, program, program_args, core=None):
+	def __init__(self, directory, testcases, sync_dir, name, args, program, program_args):
 		super(AflInstance, self).__init__()
+
 		self.directory = directory
 		self.testcases = testcases
 		self.sync_dir = sync_dir
@@ -59,7 +60,6 @@ class AflInstance(threading.Thread):
 		self.extra_args = args
 		self.program = program
 		self.program_args = program_args
-		self.core = core
 
 		self.process = None
 
@@ -68,44 +68,60 @@ class AflInstance(threading.Thread):
 		        '-i', self.testcases, '-o',
 		        self.sync_dir, '-S', self.name] + \
 		        self.extra_args + \
-				(['-Z', str(self.core)] if self.core is not None else []) + \
 				['--', self.program] + self.program_args
 
 		logger.info('Starting afl with %r' % ' '.join(args))
 		env = dict(os.environ)
 		if 'LD_LIBRARY_PATH' in env:
-			env['LD_LIBRARY_PATH'] += ':'
+			env['LD_LIBRARY_PATH'] = ':' + env['LD_LIBRARY_PATH']
 		else:
 			env['LD_LIBRARY_PATH'] = ''
-		env['LD_LIBRARY_PATH'] += os.path.join(os.path.dirname(self.program), 'libraries')
+		env['LD_LIBRARY_PATH'] = os.path.join(os.path.dirname(self.program), 'libraries') + env['LD_LIBRARY_PATH']
 		env['AFL_IMPORT_FIRST'] = 'True'
+		env['AFL_SKIP_CPUFREQ'] = 'True'
+		# env['AFL_NO_VAR_CHECK'] = 'True'
 		if DEBUG:
 			self.process = subprocess.Popen(args, env=env)
 		else:
 			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
 			for line in iter(self.process.stdout.readline, ""):
 				if not line:
-					continue
+					break
 				sys.stdout.write(str(self.process.pid) + ' - ' + line.decode('ascii'))
 
+		print('waiting on', self.process)
 		self.process.wait()
+		print('done waiting on', self.process)
 		if self.process.returncode != 0:
 			raise Exception("Process exited with %d" % self.process.returncode)
+
+	def terminate(self):
+		self.process.terminate()
 
 
 class MothershipSlave:
 
-	def __init__(self, mothership_url, directory, core=None):
+	def __init__(self, mothership_url, directory):
 		self.mothership_url = mothership_url
 		self.directory = directory
 		self.submitted_crashes = {'README.txt'}
 		self.snapshot_times = set()
 		self.snapshot_tell = 0
-		self.core = core
+		self.last_snapshot = 0
+
+		self.instance = None
+		self.upload_timer = None
+		self.submit_timer = None
 
 		try:
 			logger.info('Registering slave')
-			register = requests.get(mothership_url + '/fuzzers/register?hostname=%s' % socket.gethostname()).json()
+			request = requests.get(mothership_url + '/fuzzers/register?hostname=%s' % socket.gethostname().split('.')[0])
+			if request.status_code == 404:
+				logger.error('No more campaigns requiring fuzzers')
+				self.valid = False
+				return
+			self.valid = True
+			register = request.json()
 		except requests.ConnectionError as e:
 			raise Exception('Could not connect to %s' % mothership_url, e)
 
@@ -130,11 +146,11 @@ class MothershipSlave:
 		self.sync_dir = os.path.join(self.campaign_directory, 'sync_dir')
 		self.own_dir = os.path.join(self.sync_dir, self.name)
 
-		self.instance = None
-		self.upload_timer = None
-		self.submit_timer = None
-
 	def start(self):
+		if self.id is None:
+			# register attempt failed
+			return
+
 		logger.info('Starting fuzzer in %s' % self.own_dir)
 		self.instance = AflInstance(
 			self.directory,
@@ -144,13 +160,15 @@ class MothershipSlave:
 			self.args,
 			os.path.join(self.campaign_directory, self.program),
 			self.program_args,
-			core=self.core
 		)
+		self.instance.daemon = True
 
 		logger.info('Upload in %d', self.upload_in )
 		self.upload_timer = threading.Timer(self.upload_in, self.upload_queue)
+		self.upload_timer.daemon = True
 
 		self.submit_timer = threading.Timer(SUBMIT_FREQUENCY, self.submit)
+		self.submit_timer.daemon = True
 
 		self.instance.start()
 		self.upload_timer.start()
@@ -181,6 +199,7 @@ class MothershipSlave:
 			logger.warn('Retrying in 1 minute')
 			traceback.print_exc()
 			self.upload_timer = threading.Timer(60, self.upload_queue)
+			self.upload_timer.daemon = True
 			self.upload_timer.start()
 
 	def submit(self):
@@ -209,10 +228,12 @@ class MothershipSlave:
 						self.snapshot_times.add(values[0])
 						values[6] = values[6][:-1]
 						values = [optimistic_parse(v) for v in values]
-						snapshots.append(dict(zip(keys, values)))
+						if values[0] - self.last_snapshot > SNAPSHOT_FREQUENCY:
+							self.last_snapshot = values[0]
+							snapshots.append(dict(zip(keys, values)))
 				self.snapshot_tell = f.tell()
 
-			requests.post(self.submit_url, json={
+			response = requests.post(self.submit_url, json={
 				'snapshots': snapshots,
 				'status': status
 			})
@@ -226,16 +247,25 @@ class MothershipSlave:
 				with open(crash_path, 'rb') as crash_file:
 					requests.post(self.submit_crash + '?time=%d' % os.path.getmtime(crash_path), files={'file': crash_file})
 
+			if response.json()['terminate']:
+				logger.warn('Terminating instance %d' % self.id)
+				requests.post('%s/fuzzers/terminate/%d' % (mothership_url, self.id))
+				self.instance.terminate()
+				self.upload_timer.cancel()
+				return
+
 		except Exception as e:
 			# File not created yet
 			logger.warn(e)
 			traceback.print_exc()
 
 		self.submit_timer = threading.Timer(SUBMIT_FREQUENCY, self.submit)
+		self.submit_timer.daemon = True
 		self.submit_timer.start()
 
 	def join(self):
-		self.instance.join()
+		if self.instance:
+			self.instance.join()
 
 download = None
 def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, executable_path=None):
@@ -264,6 +294,9 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 			with tarfile.open(testcases_tar, 'r:') as tar:
 				tar.extractall(directory)
 
+			if response['dictionary']:
+				urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
+
 		for download_sync_dir in response['sync_dirs']:
 			sync_dir_name = os.path.basename(download_sync_dir).rsplit('.', 1)[0]
 			if sync_dir_name in skip_dirs:
@@ -272,7 +305,7 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 			try:
 				os.makedirs(extract_path)
 			except os.error as e:
-				logger.warn(e)
+				pass
 			tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
 			urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
 			with tarfile.open(tar_path, 'r:') as tar:
@@ -281,6 +314,7 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 
 		logger.info('Scheduling re-download in %d', response['sync_in'])
 		download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
+		download.daemon = True
 		download.start()
 
 	except Exception as e:
@@ -288,24 +322,35 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 		logger.warn('Retrying in 1 minute')
 		traceback.print_exc()
 		download = threading.Timer(60, download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
+		download.daemon = True
 		download.start()
 
 
 def main(mothership_url, count):
 	with tempdir('mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
-		slaves = [MothershipSlave(mothership_url, directory, core=core) for core in range(count)]
-		campaigns = {slave.campaign_id: slave for slave in slaves}
+		slaves = [MothershipSlave(mothership_url, directory) for _ in range(count)]
+		campaigns = {slave.campaign_id: slave for slave in slaves if slave.valid}
 		for slave in campaigns.values():
 			os.makedirs(slave.campaign_directory)
 			executable_path = os.path.join(slave.campaign_directory, slave.program)
-			download_queue(slave.campaign_id, slave.download_url, directory, slave.sync_dir, [s.name for s in slaves if s.campaign_id == slave.campaign_id], executable_path=executable_path)
+			download_queue(
+				slave.campaign_id,
+				slave.download_url,
+				directory,
+				slave.sync_dir,
+				[s.name for s in slaves if s.valid and s.campaign_id == slave.campaign_id],
+				executable_path=executable_path
+			)
 
 		for slave in slaves:
-			slave.start()
+			if slave.valid:
+				slave.start()
 
 		for slave in slaves:
+			print('waiting on', slave)
 			slave.join()
+			print('finished waiting on', slave)
 
 
 if __name__ == '__main__':
@@ -322,3 +367,5 @@ if __name__ == '__main__':
 		count = 1
 
 	main(mothership_url, count)
+	logger.info('exiting')
+	sys.exit()

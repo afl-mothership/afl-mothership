@@ -2,6 +2,7 @@ import json
 import statistics
 
 import time
+
 import sqlalchemy.types as types
 from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy import DDL, desc
@@ -12,14 +13,40 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 db = SQLAlchemy()
 db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=db))
 
+
+# from sqlalchemy import event
+# from sqlalchemy.engine import Engine
+# import logging
+#
+# logging.basicConfig()
+# logger = logging.getLogger("mothership.sqltime")
+# logger.setLevel(logging.DEBUG)
+#
+#
+# @event.listens_for(Engine, "before_cursor_execute")
+# def before_cursor_execute(conn, cursor, statement,
+#                           parameters, context, executemany):
+# 	conn.info.setdefault('query_start_time', []).append(time.time())
+# 	logger.debug("Start Query: %s", statement)
+#
+#
+# @event.listens_for(Engine, "after_cursor_execute")
+# def after_cursor_execute(conn, cursor, statement,
+#                          parameters, context, executemany):
+# 	total = time.time() - conn.info['query_start_time'].pop(-1)
+# 	logger.debug("Query Complete!")
+# 	logger.debug("Total Time: %f", total)
+
 def init_db():
-	# FIXME
-	try:
-		Campaign.get().executable_name
-	except OperationalError:
-		db.engine.execute(DDL('alter table campaign add column executable_name VARCHAR;'))
-		db.engine.execute(DDL('alter table campaign add column executable_args VARCHAR;'))
-		db.engine.execute(DDL('alter table campaign add column afl_args VARCHAR;'))
+	pass
+
+
+# try:
+# 	Campaign.get().executable_name
+# except OperationalError:
+# 	db.engine.execute(DDL('alter table campaign add column executable_name VARCHAR;'))
+# 	db.engine.execute(DDL('alter table campaign add column executable_args VARCHAR;'))
+# 	db.engine.execute(DDL('alter table campaign add column afl_args VARCHAR;'))
 
 
 class JsonType(types.TypeDecorator):
@@ -33,6 +60,7 @@ class JsonType(types.TypeDecorator):
 			return json.loads(value)
 		else:
 			return {}
+
 
 class Model:
 	id = db.Column(db.Integer(), primary_key=True)
@@ -97,7 +125,9 @@ class Campaign(Model, db.Model):
 	crashes = db.relationship('Crash', backref='campaign', lazy='dynamic')
 
 	active = db.Column(db.Boolean(), default=False)
+	desired_fuzzers = db.Column(db.Integer())
 
+	has_dictionary = db.Column(db.Boolean(), default=False)
 	executable_name = db.Column(db.String(512))
 	executable_args = db.Column(db.String(1024))
 	afl_args = db.Column(db.String(1024))
@@ -111,7 +141,7 @@ class Campaign(Model, db.Model):
 
 	@property
 	def active_fuzzers(self):
-		return sum(i.active for i in self.fuzzers)
+		return sum(i.running for i in self.fuzzers)
 
 	@property
 	def num_executions(self):
@@ -133,7 +163,6 @@ class Campaign(Model, db.Model):
 		return statistics.mean(bitmap_cvgs), statistics.stdev(bitmap_cvgs) if len(bitmap_cvgs) > 1 else 0.
 
 
-
 class FuzzerInstance(Model, db.Model):
 	__tablename__ = 'instance'
 
@@ -141,6 +170,7 @@ class FuzzerInstance(Model, db.Model):
 	snapshots = db.relationship('FuzzerSnapshot', backref='fuzzer', lazy='dynamic')
 	crashes = db.relationship('Crash', backref='fuzzer', lazy='dynamic')
 	hostname = db.Column(db.String(128))
+	terminated = db.Column(db.Boolean(), default=False)
 
 	start_time = db.Column(db.Integer())
 	last_update = db.Column(db.Integer())
@@ -167,6 +197,8 @@ class FuzzerInstance(Model, db.Model):
 	afl_banner = db.Column(db.String(512))
 	afl_version = db.Column(db.String(64))
 	command_line = db.Column(db.String(1024))
+	stability = db.Column(db.Float())
+	execs_since_crash = db.Column(db.Integer())
 
 	@property
 	def name(self):
@@ -183,8 +215,9 @@ class FuzzerInstance(Model, db.Model):
 		return bool(self.last_update)
 
 	@property
-	def active(self):
-		return self.started and time.time() - self.last_update < 60 * 10
+	def running(self):
+		return not self.terminated and time.time() - max(self.last_update or 0, self.start_time or 0) < 60 * 10
+
 
 class FuzzerSnapshot(Model, db.Model):
 	__tablename__ = 'snapshot'
@@ -201,6 +234,8 @@ class FuzzerSnapshot(Model, db.Model):
 	unique_hangs = db.Column(db.Integer())
 	max_depth = db.Column(db.Integer())
 	execs_per_sec = db.Column(db.Float())
+	stability = db.Column(db.Float())
+
 
 class Crash(Model, db.Model):
 	__tablename__ = 'crash'
@@ -223,3 +258,5 @@ class Crash(Model, db.Model):
 	frames = db.Column(JsonType)
 
 
+class GraphCache(Model, db.Model):
+	__tablename__ = 'graphcache'

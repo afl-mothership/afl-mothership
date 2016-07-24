@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import random
 
+import time
 from flask import Blueprint, jsonify, request, current_app, send_file, url_for
 from werkzeug.utils import secure_filename
 #from itsdangerous import Signer, BadSignature
@@ -16,8 +17,10 @@ from mothership import models
 fuzzers = Blueprint('fuzzers', __name__)
 
 def get_best_campaign():
-	# TODO: for now we just get the active
-	return models.Campaign.get(active=True)
+	for campaign in models.Campaign.all(active=True).order_by(models.Campaign.id):
+		if campaign.active_fuzzers < campaign.desired_fuzzers:
+			return campaign
+	return None
 
 
 # TODO: make instances each own a secret key used to sign submitted data
@@ -34,8 +37,9 @@ def register():
 	hostname = request.args.get('hostname')
 	campaign = get_best_campaign()
 	if not campaign:
-		return 'No active campaigns', 400
+		return 'No active campaigns', 404
 	instance = models.FuzzerInstance.create(hostname=hostname)
+	instance.start_time = time.time()
 	campaign.fuzzers.append(instance)
 	campaign.commit()
 
@@ -59,6 +63,13 @@ def register():
 	)
 
 
+@fuzzers.route('/fuzzers/terminate/<int:instance_id>', methods=['POST'])
+def terminate(instance_id):
+	instance = models.FuzzerInstance.get(id=instance_id)
+	instance.update(terminated=True)
+	instance.commit()
+	return jsonify()
+
 @fuzzers.route('/fuzzers/submit/<int:instance_id>', methods=['POST'])
 def submit(instance_id):
 	instance = models.FuzzerInstance.get(id=instance_id)
@@ -68,7 +79,9 @@ def submit(instance_id):
 		snapshot.update(**snapshot_data)
 		instance.snapshots.append(snapshot)
 	instance.commit()
-	return jsonify()
+	return jsonify(
+		terminate=not instance.campaign.active
+	)
 
 
 @fuzzers.route('/fuzzers/submit_crash/<int:instance_id>', methods=['POST'])
@@ -134,6 +147,7 @@ def download(campaign_id):
 		executable=request.host_url[:-1] + url_for('fuzzers.download_executable', campaign_id=campaign.id),
 		libraries=request.host_url[:-1] + url_for('fuzzers.download_libraries', campaign_id=campaign.id),
 		testcases=request.host_url[:-1] + url_for('fuzzers.download_testcases', campaign_id=campaign.id),
+		dictionary=request.host_url[:-1] + url_for('fuzzers.download_dictionary', campaign_id=campaign.id) if campaign.has_dictionary else None,
 		sync_dirs=[
 			request.host_url[:-1] + url_for('fuzzers.download_syncdir', campaign_id=campaign.id, filename=os.path.basename(filename)) for filename in glob.glob(sync_dir)
 		],
@@ -165,6 +179,12 @@ def download_libraries(campaign_id):
 def download_executable(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	executable = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'executable')
+	return send_file(os.path.abspath(executable))
+
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/dictionary.txt', methods=['GET'])
+def download_dictionary(campaign_id):
+	campaign = models.Campaign.get(id=campaign_id)
+	executable = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'dictionary')
 	return send_file(os.path.abspath(executable))
 
 @fuzzers.route('/fuzzers/download/afl-fuzz', methods=['GET'])

@@ -35,7 +35,7 @@
 					<tbody>
 					<tr>
 						<th class="shrink">Executable Name</th>
-						<td>{{ campaign.executable_name }}</td>
+						<td><a href="{{ url_for('fuzzers.download_executable', campaign_id=campaign.id) }}">{{ campaign.executable_name }}</a></td>
 					</tr>
 					<tr>
 						<th class="shrink">Executable Args</th>
@@ -45,7 +45,14 @@
 						<th class="shrink">AFL Args</th>
 						<td>{{ campaign.afl_args }}</td>
 					</tr>
-
+					<tr>
+						<th class="shrink">Dictionary</th>
+						<td>{% if campaign.has_dictionary %} <a href="{{ url_for('fuzzers.download_dictionary', campaign_id=campaign.id) }}">dictionary</a> {% else %} None {% endif %}</td>
+					</tr>
+					<tr>
+						<th class="shrink">Active Instances</th>
+						<td>{{ campaign.active_fuzzers }}/{{ campaign.desired_fuzzers if campaign.active else 0 }}</td>
+					</tr>
 					</tbody>
 				</table>
 			</div>
