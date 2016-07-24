@@ -6,7 +6,6 @@ from flask_script import Manager, Server
 from flask_script.commands import ShowUrls, Clean
 from mothership import create_app
 from mothership.models import db
-# from mothership.models import User
 
 # default to dev config because no one should use this in
 # production anyway
@@ -39,3 +38,6 @@ def createdb():
 
 if __name__ == "__main__":
 	manager.run()
+
+
+# ./venv/bin/uwsgi --http 0.0.0.0:8000 --home venv --wsgi-file manage.py --callable app --master --catch-exceptions

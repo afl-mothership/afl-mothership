@@ -5,6 +5,7 @@ import sys
 sys.path.append(os.path.dirname(exploitable_path))
 gdb.execute('source %s' % exploitable_path)
 
+#import time; time.sleep(5)
 run = gdb.execute('run', to_string=True)
 
 frames = []

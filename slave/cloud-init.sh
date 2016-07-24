@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# URL of the mothership server
-MOTHERSHIP=http://home.uint8.me:5000
-# Number of afl-instances to run on the slave(s)
+# URL of the mothership server. WARNING: make sure this is accessible from the slave. You probably want to use the internal ip
+MOTHERSHIP=http://172.31.30.196
+#http://172.31.16.9
+# Number of afl-instances to run on each slave
 CORES=2
+#CORES=`grep -c ^processor /proc/cpuinfo`
 
 # Github repo to download the slave script from
 GITHUB=https://raw.githubusercontent.com/synap5e/afl-mothership

@@ -13,6 +13,7 @@ common_js = Bundle(
 	'js/vendor/bootstrap.min.js',
 
 	'js/vendor/highcharts.src.js',
+	'js/vendor/highcharts-more.src.js',
 	'js/vendor/heatmap.src.js',
 	'js/vendor/exporting.js',
 	'js/vendor/offline-exporting.js',

@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import random
 
+import time
 from flask import Blueprint, jsonify, request, current_app, send_file, url_for
 from werkzeug.utils import secure_filename
 #from itsdangerous import Signer, BadSignature
@@ -16,8 +17,10 @@ from mothership import models
 fuzzers = Blueprint('fuzzers', __name__)
 
 def get_best_campaign():
-	# TODO: for now we just get the active
-	return models.Campaign.get(active=True)
+	for campaign in models.Campaign.all(active=True).order_by(models.Campaign.id):
+		if campaign.active_fuzzers < campaign.desired_fuzzers:
+			return campaign
+	return None
 
 
 # TODO: make instances each own a secret key used to sign submitted data
@@ -34,8 +37,9 @@ def register():
 	hostname = request.args.get('hostname')
 	campaign = get_best_campaign()
 	if not campaign:
-		return 'No active campaigns', 400
+		return 'No active campaigns', 404
 	instance = models.FuzzerInstance.create(hostname=hostname)
+	instance.start_time = time.time()
 	campaign.fuzzers.append(instance)
 	campaign.commit()
 
@@ -59,6 +63,13 @@ def register():
 	)
 
 
+@fuzzers.route('/fuzzers/terminate/<int:instance_id>', methods=['POST'])
+def terminate(instance_id):
+	instance = models.FuzzerInstance.get(id=instance_id)
+	instance.update(terminated=True)
+	instance.commit()
+	return jsonify()
+
 @fuzzers.route('/fuzzers/submit/<int:instance_id>', methods=['POST'])
 def submit(instance_id):
 	instance = models.FuzzerInstance.get(id=instance_id)
@@ -68,7 +79,9 @@ def submit(instance_id):
 		snapshot.update(**snapshot_data)
 		instance.snapshots.append(snapshot)
 	instance.commit()
-	return jsonify()
+	return jsonify(
+		terminate=not instance.campaign.active
+	)
 
 
 @fuzzers.route('/fuzzers/submit_crash/<int:instance_id>', methods=['POST'])

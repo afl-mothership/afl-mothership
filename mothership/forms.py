@@ -3,7 +3,7 @@ import os
 from flask import current_app
 from flask_wtf import Form
 from werkzeug.utils import secure_filename
-from wtforms import StringField, SelectField
+from wtforms import StringField, SelectField, IntegerField
 from flask_wtf.file import FileField
 from wtforms import validators
 
@@ -15,6 +15,7 @@ class CampaignForm(Form):
 	executable_args = StringField('Executable Args', validators=[validators.required()], default='@@')
 	afl_args = StringField('AFL Args', validators=[validators.required()], default='-m 100 -t 50+')
 	copy_of = SelectField('Copy of', coerce=int, choices=[(-1, 'None')])
+	desired_fuzzers = IntegerField('Desired Fuzzers')
 	executable = FileField()
 	libraries = FileField(
 		render_kw={'multiple': True},

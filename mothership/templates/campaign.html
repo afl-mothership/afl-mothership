@@ -45,6 +45,10 @@
 						<th class="shrink">AFL Args</th>
 						<td>{{ campaign.afl_args }}</td>
 					</tr>
+					<tr>
+						<th class="shrink">Active Instances</th>
+						<td>{{ campaign.active_fuzzers }}/{{ campaign.desired_fuzzers if campaign.active else 0 }}</td>
+					</tr>
 
 					</tbody>
 				</table>

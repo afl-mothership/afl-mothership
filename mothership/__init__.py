@@ -75,6 +75,7 @@ def create_app(object_name):
 	app.register_blueprint(graphs)
 	app.register_blueprint(fuzzers)
 	csrf.exempt(fuzzers)
+
 	#socketio.init_app(app)
 
 	try:

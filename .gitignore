@@ -8,5 +8,8 @@ data
 import*
 export
 .gdb_history
+*.pem
+campaigns
 
 
+cert

@@ -24,7 +24,7 @@
                 <tr class="tr_link" data-href="{{ url_for('campaigns.campaign', campaign_id=campaign.id) }}">
                     <td><b>{{ campaign.name }}</b></td>
                     <td>{% if campaign.active %}Active{% else %}Inactive{% endif %}</td>
-                    <td>{{ campaign.active_fuzzers }}</td>
+                    <td>{{ campaign.active_fuzzers }}/{{ campaign.desired_fuzzers if campaign.active else 0 }}</td>
                     <!--<td>A</td>-->
                     <td>{{ campaign.bitmap_cvg[0] | round(1) }}%</td>
                     <td>{{ campaign.num_executions }}</td>

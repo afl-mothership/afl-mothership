@@ -1,7 +1,10 @@
 import shutil
+import statistics
 import subprocess
 import time
 import os
+
+import sqlalchemy
 from flask import Blueprint, render_template, render_template_string, flash, redirect, request, url_for, jsonify, current_app
 from datetime import datetime
 from sqlalchemy import case
@@ -14,7 +17,7 @@ from mothership.utils import format_timedelta_secs, pretty_size_dec, format_ago
 campaigns = Blueprint('campaigns', __name__)
 
 
-@campaigns.route('/campaigns')
+@campaigns.route('/')
 def list_campaigns():
 	return render_template('campaigns.html', campaigns=models.Campaign.query.all())
 
@@ -25,6 +28,7 @@ def new_campaign():
 	if form.validate_on_submit():
 		model = models.Campaign(form.name)
 		form.populate_obj(model)
+		model.active = True
 		model.put()
 
 		copyof = models.Campaign.get(id=form.copy_of.data)
@@ -72,7 +76,6 @@ def campaign(campaign_id):
 		if 'delete' in request.form:
 			return redirect(url_for('campaigns.delete', campaign_id=campaign_id))
 		if 'enable' in request.form:
-			models.Campaign.update_all(active=False)
 			campaign_model.active = request.form['enable'].lower() == 'true'
 			campaign_model.put()
 			flash('Campaign enabled', 'success')
@@ -109,8 +112,8 @@ def campaign(campaign_id):
 	crashes = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=True).group_by(models.Crash.backtrace).order_by(case({
 		'EXPLOITABLE': 0,
 		'PROBABLY_EXPLOITABLE': 1,
-		'PROBABLY_NOT_EXPLOITABLE': 2,
-		'UNKNOWN': 3},
+		'UNKNOWN': 2,
+		'PROBABLY_NOT_EXPLOITABLE': 3},
 		value=models.Crash.exploitable,
 		else_=4
 	))
@@ -194,18 +197,6 @@ def analysis_queue_campaign(campaign_id):
 		} for crash in models.Crash.all(campaign_id=campaign_id)
 	])
 
-
-@campaigns.route('/campaigns/update/<int:campaign_id>', methods=['GET', 'POST'])
-def update(campaign_id):
-	campaign_model = models.Campaign.get(id=campaign_id)
-	if 'enable' in request.args:
-		# TODO: allow multiple active campaigns
-
-		return redirect(url_for('campaigns.campaign', campaign_id=campaign_id))
-
-	return '', 400
-
-
 def count_crashes(crashes, **kwargs):
 	return sum(1 if all(hasattr(crash, k) and getattr(crash, k) == v for k, v in kwargs.items()) else 0 for crash in crashes)
 
@@ -215,7 +206,7 @@ def stats(campaign_id):
 	current_time = int(time.time())
 	total_executions, combined_run, last_path, last_crash, last_update = 0, 0, 0, 0, 0
 	for instance in campaign_model.fuzzers:
-		if instance.start_time is not None:
+		if instance.started:
 			total_executions += instance.execs_done
 			combined_run += instance.last_update - instance.start_time
 			last_path = max(last_path, instance.last_path)
