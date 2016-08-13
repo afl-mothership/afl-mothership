@@ -143,7 +143,6 @@ def download(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	sync_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'sync_dir', '*.tar')
 	return jsonify(
-		afl=request.host_url[:-1] + url_for('fuzzers.download_afl'),
 		executable=request.host_url[:-1] + url_for('fuzzers.download_executable', campaign_id=campaign.id),
 		libraries=request.host_url[:-1] + url_for('fuzzers.download_libraries', campaign_id=campaign.id),
 		testcases=request.host_url[:-1] + url_for('fuzzers.download_testcases', campaign_id=campaign.id),
@@ -156,9 +155,8 @@ def download(campaign_id):
 @fuzzers.route('/fuzzers/download/<int:campaign_id>/testcases.tar', methods=['GET'])
 def download_testcases(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
-	testcases_dir = os.path.join(secure_filename(campaign.name), 'testcases')
-	testcases_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], testcases_dir)
-	return serve_directory_tar(testcases_local_dir, testcases_dir)
+	testcases_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'testcases')
+	return serve_directory_tar(testcases_local_dir, 'testcases')
 
 @fuzzers.route('/fuzzers/download/<int:campaign_id>/<filename>', methods=['GET'])
 def download_syncdir(campaign_id, filename):
@@ -170,9 +168,8 @@ def download_syncdir(campaign_id, filename):
 @fuzzers.route('/fuzzers/download/<int:campaign_id>/libraries.tar', methods=['GET'])
 def download_libraries(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
-	syncdir = os.path.join(secure_filename(campaign.name), 'libraries')
-	syncdir_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], syncdir)
-	return serve_directory_tar(syncdir_local_dir, syncdir)
+	libraries_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'libraries')
+	return serve_directory_tar(libraries_local_dir, 'libraries')
 
 @fuzzers.route('/fuzzers/download/<int:campaign_id>/executable', methods=['GET'])
 def download_executable(campaign_id):

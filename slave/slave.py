@@ -20,6 +20,8 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+SHARE_WHEN_POSSIBLE = False
 DEBUG = False
 SUBMIT_FREQUENCY = 60
 SNAPSHOT_FREQUENCY = 60
@@ -108,6 +110,7 @@ class MothershipSlave:
 		self.snapshot_tell = 0
 		self.last_snapshot = 0
 
+		self.id = None
 		self.instance = None
 		self.upload_timer = None
 		self.submit_timer = None
@@ -141,6 +144,8 @@ class MothershipSlave:
 		self.upload_in = register['upload_in']
 
 		self.campaign_directory = os.path.join(directory, register['campaign_name'])
+		if not SHARE_WHEN_POSSIBLE:
+			self.campaign_directory += '_' + str(self.id)
 		self.testcases = os.path.join(self.campaign_directory, 'testcases')
 		self.sync_dir = os.path.join(self.campaign_directory, 'sync_dir')
 		self.own_dir = os.path.join(self.sync_dir, self.name)
@@ -264,50 +269,45 @@ class MothershipSlave:
 		if self.instance:
 			self.instance.join()
 
-download = None
-def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, executable_path=None):
-	global download
-	logger.info('Downloading campaign data from %s' % download_url)
+def download_queue(download_url, directory, skip_dirs, executable_name=None):
+	logger.info('Downloading campaign data from %s to %s' % (download_url, directory))
 
 	try:
 		response = requests.get(download_url).json()
 
-		if executable_path:
-			afl = os.path.join(directory, 'afl-fuzz')
-			if not os.path.exists(afl):
-				urllib_request.urlretrieve(response['afl'], filename=afl)
-				os.chmod(afl, 0o755)
-
+		if executable_name:
+			# Only download executable, libraries and testcases if this is the first time we run
+			executable_path = os.path.join(directory, executable_name)
 			urllib_request.urlretrieve(response['executable'], filename=executable_path)
 			os.chmod(executable_path, 0o755)
 
-			libraries_tar = os.path.join(directory, 'libraries_%d.tar.gz' % campaign_id)
+			libraries_tar = os.path.join(directory, 'libraries.tar.gz')
 			urllib_request.urlretrieve(response['libraries'], filename=libraries_tar)
 			with tarfile.open(libraries_tar, 'r:') as tar:
 				tar.extractall(directory)
 
-			testcases_tar = os.path.join(directory, 'testcases_%d.tar.gz' % campaign_id)
+			testcases_tar = os.path.join(directory, 'testcases.tar.gz')
 			urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
 			with tarfile.open(testcases_tar, 'r:') as tar:
 				tar.extractall(directory)
 
 		for download_sync_dir in response['sync_dirs']:
-			sync_dir_name = os.path.basename(download_sync_dir).rsplit('.', 1)[0]
+			sync_dir_name, _ = os.path.basename(download_sync_dir).rsplit('.', 1)
 			if sync_dir_name in skip_dirs:
 				continue
-			extract_path = os.path.join(sync_dir, sync_dir_name)
+			extract_path = os.path.join(directory, 'sync_dir', sync_dir_name)
 			try:
 				os.makedirs(extract_path)
 			except os.error as e:
 				pass
-			tar_path = os.path.join(sync_dir, sync_dir_name + '.tar')
+			tar_path = os.path.join(directory, 'sync_dir', sync_dir_name + '.tar')
 			urllib_request.urlretrieve(download_sync_dir, filename=tar_path)
 			with tarfile.open(tar_path, 'r:') as tar:
 				new_files = [t for t in tar.getmembers() if not os.path.exists(os.path.join(extract_path, t.name))]
 				tar.extractall(extract_path, new_files)
 
 		logger.info('Scheduling re-download in %d', response['sync_in'])
-		download = threading.Timer(response['sync_in'], download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
+		download = threading.Timer(response['sync_in'], download_queue, (download_url, directory, skip_dirs))
 		download.daemon = True
 		download.start()
 
@@ -315,20 +315,36 @@ def download_queue(campaign_id, download_url, directory, sync_dir, skip_dirs, ex
 		logger.warn(e)
 		logger.warn('Retrying in 1 minute')
 		traceback.print_exc()
-		download = threading.Timer(60, download_queue, (campaign_id, download_url, directory, sync_dir, skip_dirs))
+		download = threading.Timer(60, download_queue, (download_url, directory, skip_dirs))
 		download.daemon = True
 		download.start()
+
+
+def download_afl(mothership_url, directory):
+	logger.info('Downloading afl-fuzz and libdislocator.so to %s', mothership_url)
+	afl = os.path.join(directory, 'afl-fuzz')
+	urllib_request.urlretrieve('%s/fuzzers/download/afl-fuzz' % mothership_url, filename=afl)
+	os.chmod(afl, 0o755)
 
 
 def main(mothership_url, count):
 	with tempdir('mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
 		slaves = [MothershipSlave(mothership_url, directory) for _ in range(count)]
-		campaigns = {slave.campaign_id: slave for slave in slaves if slave.valid}
+		campaigns = {slave.campaign_directory: slave for slave in slaves if slave.valid}
+
+		if not campaigns:
+			logger.warn('No valid campaigns')
+			return
+
+		download_afl(mothership_url, directory)
 		for slave in campaigns.values():
 			os.makedirs(slave.campaign_directory)
-			executable_path = os.path.join(slave.campaign_directory, slave.program)
-			download_queue(slave.campaign_id, slave.download_url, directory, slave.sync_dir, [s.name for s in slaves if s.valid and s.campaign_id == slave.campaign_id], executable_path=executable_path)
+			if SHARE_WHEN_POSSIBLE:
+				skip_dirs = [s.name for s in slaves if s.valid and s.campaign_id == slave.campaign_id]
+			else:
+				skip_dirs = [slave.name]
+			download_queue(slave.download_url, slave.campaign_directory, skip_dirs, executable_name=slave.program)
 
 		for slave in slaves:
 			if slave.valid:
