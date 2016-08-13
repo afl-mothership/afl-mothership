@@ -146,6 +146,7 @@ def download(campaign_id):
 		executable=request.host_url[:-1] + url_for('fuzzers.download_executable', campaign_id=campaign.id),
 		libraries=request.host_url[:-1] + url_for('fuzzers.download_libraries', campaign_id=campaign.id),
 		testcases=request.host_url[:-1] + url_for('fuzzers.download_testcases', campaign_id=campaign.id),
+		dictionary=request.host_url[:-1] + url_for('fuzzers.download_dictionary', campaign_id=campaign.id) if campaign.has_dictionary else None,
 		sync_dirs=[
 			request.host_url[:-1] + url_for('fuzzers.download_syncdir', campaign_id=campaign.id, filename=os.path.basename(filename)) for filename in glob.glob(sync_dir)
 		],
@@ -175,6 +176,12 @@ def download_libraries(campaign_id):
 def download_executable(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	executable = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'executable')
+	return send_file(os.path.abspath(executable))
+
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/dictionary.txt', methods=['GET'])
+def download_dictionary(campaign_id):
+	campaign = models.Campaign.get(id=campaign_id)
+	executable = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'dictionary')
 	return send_file(os.path.abspath(executable))
 
 @fuzzers.route('/fuzzers/download/afl-fuzz', methods=['GET'])

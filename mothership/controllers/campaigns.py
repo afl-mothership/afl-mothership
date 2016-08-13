@@ -66,6 +66,16 @@ def new_campaign():
 		else:
 			os.makedirs(tests)
 
+		dictionary = os.path.join(dir, 'dictionary')
+		if form.dictionary.has_file():
+			form.dictionary.data.save(dictionary)
+			model.has_dictionary = True
+			model.commit()
+		elif other:
+			shutil.copy(os.path.join(other, 'dictionary'), os.path.join(dir, 'dictionary'))
+			model.has_dictionary = True
+			model.commit()
+
 		flash('Campaign created', 'success')
 		return redirect(request.args.get('next') or url_for('campaigns.campaign', campaign_id=model.id))
 	return render_template('new-campaign.html', form=form)
@@ -130,10 +140,10 @@ def campaign(campaign_id):
 def get_ldd(campaign_model):
 	env = dict(os.environ)
 	if 'LD_LIBRARY_PATH' in env:
-		env['LD_LIBRARY_PATH'] += ':'
+		env['LD_LIBRARY_PATH'] = ':' + env['LD_LIBRARY_PATH']
 	else:
 		env['LD_LIBRARY_PATH'] = ''
-	env['LD_LIBRARY_PATH'] += os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'libraries')
+	env['LD_LIBRARY_PATH'] = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'libraries') + env['LD_LIBRARY_PATH']
 	try:
 		p = subprocess.Popen(['ldd', os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'executable')], env=env, stdout=subprocess.PIPE)
 		process_output = p.communicate()

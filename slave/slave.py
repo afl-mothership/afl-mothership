@@ -75,12 +75,13 @@ class AflInstance(threading.Thread):
 		logger.info('Starting afl with %r' % ' '.join(args))
 		env = dict(os.environ)
 		if 'LD_LIBRARY_PATH' in env:
-			env['LD_LIBRARY_PATH'] += ':'
+			env['LD_LIBRARY_PATH'] = ':' + env['LD_LIBRARY_PATH']
 		else:
 			env['LD_LIBRARY_PATH'] = ''
-		env['LD_LIBRARY_PATH'] += os.path.join(os.path.dirname(self.program), 'libraries')
+		env['LD_LIBRARY_PATH'] = os.path.join(os.path.dirname(self.program), 'libraries') + env['LD_LIBRARY_PATH']
 		env['AFL_IMPORT_FIRST'] = 'True'
 		env['AFL_PRELOAD'] = os.path.join(self.directory, './libdislocator.so')
+		env['AFL_SKIP_CPUFREQ'] = 'True'
 		# env['AFL_NO_VAR_CHECK'] = 'True'
 		if DEBUG:
 			self.process = subprocess.Popen(args, env=env)
@@ -151,6 +152,10 @@ class MothershipSlave:
 		self.sync_dir = os.path.join(self.campaign_directory, 'sync_dir')
 		self.own_dir = os.path.join(self.sync_dir, self.name)
 
+		self.instance = None
+		self.upload_timer = None
+		self.submit_timer = None
+
 	def start(self):
 		if self.id is None:
 			# register attempt failed
@@ -170,8 +175,10 @@ class MothershipSlave:
 
 		logger.info('Upload in %d', self.upload_in )
 		self.upload_timer = threading.Timer(self.upload_in, self.upload_queue)
+		self.upload_timer.daemon = True
 
 		self.submit_timer = threading.Timer(SUBMIT_FREQUENCY, self.submit)
+		self.submit_timer.daemon = True
 
 		self.instance.start()
 		self.upload_timer.start()
@@ -292,6 +299,9 @@ def download_queue(download_url, directory, skip_dirs, executable_name=None):
 			with tarfile.open(testcases_tar, 'r:') as tar:
 				tar.extractall(directory)
 
+			if response['dictionary']:
+				urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
+
 		for download_sync_dir in response['sync_dirs']:
 			sync_dir_name, _ = os.path.basename(download_sync_dir).rsplit('.', 1)
 			if sync_dir_name in skip_dirs:
@@ -374,4 +384,5 @@ if __name__ == '__main__':
 		count = 1
 
 	main(mothership_url, count)
+	logger.info('exiting')
 	sys.exit()

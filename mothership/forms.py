@@ -23,6 +23,7 @@ class CampaignForm(Form):
 	testcases = FileField(
 		render_kw={'multiple': True},
 	)
+	dictionary = FileField()
 
 	def validate(self):
 		check_validate = super().validate()

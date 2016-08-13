@@ -127,6 +127,7 @@ class Campaign(Model, db.Model):
 	active = db.Column(db.Boolean(), default=False)
 	desired_fuzzers = db.Column(db.Integer())
 
+	has_dictionary = db.Column(db.Boolean(), default=False)
 	executable_name = db.Column(db.String(512))
 	executable_args = db.Column(db.String(1024))
 	afl_args = db.Column(db.String(1024))
