@@ -52,7 +52,7 @@ def optimistic_parse(value):
 
 class AflInstance(threading.Thread):
 
-	def __init__(self, directory, testcases, sync_dir, name, args, program, program_args):
+	def __init__(self, directory, testcases, sync_dir, name, dictionary, args, program, program_args):
 		super(AflInstance, self).__init__()
 
 		self.directory = directory
@@ -60,17 +60,17 @@ class AflInstance(threading.Thread):
 		self.sync_dir = sync_dir
 		self.name = name
 		self.extra_args = args
+		self.dictionary = dictionary
 		self.program = program
 		self.program_args = program_args
 
 		self.process = None
 
 	def run(self):
-		args = [os.path.join(self.directory, './afl-fuzz'),
-		        '-i', self.testcases, '-o',
-		        self.sync_dir, '-S', self.name] + \
-		        self.extra_args + \
-				['--', self.program] + self.program_args
+		args = [os.path.join(self.directory, './afl-fuzz'), '-i', self.testcases, '-o', self.sync_dir, '-S', self.name] + self.extra_args
+		if self.dictionary:
+			args += ['-x', self.dictionary]
+		args += ['--', self.program] + self.program_args
 
 		logger.info('Starting afl with %r' % ' '.join(args))
 		env = dict(os.environ)
@@ -162,11 +162,13 @@ class MothershipSlave:
 			return
 
 		logger.info('Starting fuzzer in %s' % self.own_dir)
+		dictionary = os.path.join(self.campaign_directory, 'dictionary.txt')
 		self.instance = AflInstance(
 			self.directory,
 			self.testcases,
 			self.sync_dir,
 			self.name,
+			dictionary if os.path.exists(dictionary) else None,
 			self.args,
 			os.path.join(self.campaign_directory, self.program),
 			self.program_args,
@@ -299,8 +301,9 @@ def download_queue(download_url, directory, skip_dirs, executable_name=None):
 			with tarfile.open(testcases_tar, 'r:') as tar:
 				tar.extractall(directory)
 
+			dictionary = os.path.join(directory, 'dictionary.txt')
 			if response['dictionary']:
-				urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
+				urllib_request.urlretrieve(response['dictionary'], filename=dictionary)
 
 		for download_sync_dir in response['sync_dirs']:
 			sync_dir_name, _ = os.path.basename(download_sync_dir).rsplit('.', 1)
