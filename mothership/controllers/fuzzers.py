@@ -182,6 +182,11 @@ def download_afl():
 	afl = os.path.join(current_app.config['DATA_DIRECTORY'], 'afl-fuzz')
 	return send_file(os.path.abspath(afl))
 
+@fuzzers.route('/fuzzers/download/libdislocator.so', methods=['GET'])
+def download_libdislocator():
+	libdislocator = os.path.join(current_app.config['DATA_DIRECTORY'], 'libdislocator.so')
+	return send_file(os.path.abspath(libdislocator))
+
 def serve_directory_tar(local_dir, arcname):
 	tardata = io.BytesIO()
 	os.makedirs(local_dir, exist_ok=True)

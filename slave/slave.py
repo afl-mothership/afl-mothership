@@ -80,6 +80,7 @@ class AflInstance(threading.Thread):
 			env['LD_LIBRARY_PATH'] = ''
 		env['LD_LIBRARY_PATH'] += os.path.join(os.path.dirname(self.program), 'libraries')
 		env['AFL_IMPORT_FIRST'] = 'True'
+		env['AFL_PRELOAD'] = os.path.join(self.directory, './libdislocator.so')
 		# env['AFL_NO_VAR_CHECK'] = 'True'
 		if DEBUG:
 			self.process = subprocess.Popen(args, env=env)
@@ -325,6 +326,9 @@ def download_afl(mothership_url, directory):
 	afl = os.path.join(directory, 'afl-fuzz')
 	urllib_request.urlretrieve('%s/fuzzers/download/afl-fuzz' % mothership_url, filename=afl)
 	os.chmod(afl, 0o755)
+
+	libdislocator = os.path.join(directory, 'libdislocator.so')
+	urllib_request.urlretrieve('%s/fuzzers/download/libdislocator.so' % mothership_url, filename=libdislocator)
 
 
 def main(mothership_url, count):
