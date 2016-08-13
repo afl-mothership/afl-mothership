@@ -19,6 +19,10 @@ campaigns = Blueprint('campaigns', __name__)
 
 @campaigns.route('/')
 def list_campaigns():
+	if not os.path.exists(os.path.join(current_app.config['DATA_DIRECTORY'], 'libdislocator.so')):
+		flash('Missing libdislocator.so', 'danger')
+	if not os.path.exists(os.path.join(current_app.config['DATA_DIRECTORY'], 'afl-fuzz')):
+		flash('Missing afl-fuzz', 'danger')
 	return render_template('campaigns.html', campaigns=models.Campaign.query.all())
 
 @campaigns.route('/campaigns/new', methods=['GET', 'POST'])
