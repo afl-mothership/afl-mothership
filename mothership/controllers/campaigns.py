@@ -159,7 +159,7 @@ def get_ldd(campaign_model):
 			if found:
 				path = parts[2]
 				if path.startswith(current_app.config['DATA_DIRECTORY']):
-					ldd_row = (parts[0], 'info', path.split(os.path.sep, 1)[1])
+					ldd_row = (parts[0], 'info', path.rsplit(os.path.sep, 1)[-1])
 				else:
 					ldd_row = (parts[0], '', path)
 			else:
