@@ -49,8 +49,8 @@ def register():
 		id=instance.id,
 		name=secure_filename(instance.name),
 		program=campaign.executable_name,
-		program_args=campaign.executable_args.split(' '),  # TODO: add support for spaces
-		args=campaign.afl_args.split(' '),
+		program_args=campaign.executable_args.split(' ') if campaign.executable_args else [],  # TODO: add support for spaces
+		args=campaign.afl_args.split(' ') if campaign.afl_args else [],
 
 		campaign_id=campaign.id,
 		campaign_name=secure_filename(campaign.name),
@@ -146,6 +146,7 @@ def download(campaign_id):
 		executable=request.host_url[:-1] + url_for('fuzzers.download_executable', campaign_id=campaign.id),
 		libraries=request.host_url[:-1] + url_for('fuzzers.download_libraries', campaign_id=campaign.id),
 		testcases=request.host_url[:-1] + url_for('fuzzers.download_testcases', campaign_id=campaign.id),
+		ld_preload=request.host_url[:-1] + url_for('fuzzers.download_ld_preload', campaign_id=campaign.id),
 		dictionary=request.host_url[:-1] + url_for('fuzzers.download_dictionary', campaign_id=campaign.id) if campaign.has_dictionary else None,
 		sync_dirs=[
 			request.host_url[:-1] + url_for('fuzzers.download_syncdir', campaign_id=campaign.id, filename=os.path.basename(filename)) for filename in glob.glob(sync_dir)
@@ -158,6 +159,13 @@ def download_testcases(campaign_id):
 	campaign = models.Campaign.get(id=campaign_id)
 	testcases_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'testcases')
 	return serve_directory_tar(testcases_local_dir, 'testcases')
+
+
+@fuzzers.route('/fuzzers/download/<int:campaign_id>/ld_preload.tar', methods=['GET'])
+def download_ld_preload(campaign_id):
+	campaign = models.Campaign.get(id=campaign_id)
+	testcases_local_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign.name), 'ld_preload')
+	return serve_directory_tar(testcases_local_dir, 'ld_preload')
 
 @fuzzers.route('/fuzzers/download/<int:campaign_id>/<filename>', methods=['GET'])
 def download_syncdir(campaign_id, filename):
@@ -189,10 +197,6 @@ def download_afl():
 	afl = os.path.join(current_app.config['DATA_DIRECTORY'], 'afl-fuzz')
 	return send_file(os.path.abspath(afl))
 
-@fuzzers.route('/fuzzers/download/libdislocator.so', methods=['GET'])
-def download_libdislocator():
-	libdislocator = os.path.join(current_app.config['DATA_DIRECTORY'], 'libdislocator.so')
-	return send_file(os.path.abspath(libdislocator))
 
 def serve_directory_tar(local_dir, arcname):
 	tardata = io.BytesIO()
@@ -214,7 +218,6 @@ def analysis_queue(campaign_id):
 			'download': request.host_url[:-1] + url_for('fuzzers.download_crash', crash_id=crash.id)
 		} for crash in campaign.crashes.filter_by(analyzed=False)]
 	)
-
 
 @fuzzers.route('/fuzzers/download_crash/<int:crash_id>')
 def download_crash(crash_id):

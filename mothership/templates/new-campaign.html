@@ -21,6 +21,7 @@
 					{{ render_field(form.executable_name) }}
 					<p>Note: spaces in args are not yet supported</p>
 					{{ render_field(form.executable_args) }}
+					<p>Note: '@@' expands to input file, '%%' expands to directory of executable</p>
 					{{ render_field(form.afl_args) }}
 					{{ render_field(form.desired_fuzzers) }}
 				</div>
@@ -33,7 +34,12 @@
 					{{ render_field(form.executable) }}
 					{{ render_field(form.libraries) }}
 					{{ render_field(form.testcases) }}
+					{{ render_field(form.ld_preload) }}
 					{{ render_field(form.dictionary) }}
+				</div>
+
+				<div class="form-group">
+					{{ render_field(form.use_libdislocator) }}
 				</div>
 
                 <button type="submit" class="btn btn-primary">Submit</button>

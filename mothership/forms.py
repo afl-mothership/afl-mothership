@@ -3,7 +3,7 @@ import os
 from flask import current_app
 from flask_wtf import Form
 from werkzeug.utils import secure_filename
-from wtforms import StringField, SelectField, IntegerField
+from wtforms import StringField, SelectField, IntegerField, BooleanField
 from flask_wtf.file import FileField
 from wtforms import validators
 
@@ -12,8 +12,8 @@ from mothership.models import Campaign
 class CampaignForm(Form):
 	name = StringField('Name', validators=[validators.required()])
 	executable_name = StringField('Executable Name', validators=[validators.required()], default='executable')
-	executable_args = StringField('Executable Args', validators=[validators.required()], default='@@')
-	afl_args = StringField('AFL Args', validators=[validators.required()], default='-m 100 -t 50+')
+	executable_args = StringField('Executable Args', default='@@')
+	afl_args = StringField('AFL Args', default='-m 100 -t 50+')
 	copy_of = SelectField('Copy of', coerce=int, choices=[(-1, 'None')])
 	desired_fuzzers = IntegerField('Desired Fuzzers')
 	executable = FileField()
@@ -23,7 +23,12 @@ class CampaignForm(Form):
 	testcases = FileField(
 		render_kw={'multiple': True},
 	)
+	ld_preload = FileField(
+		'LD PRELOAD',
+		render_kw={'multiple': True},
+	)
 	dictionary = FileField()
+	use_libdislocator = BooleanField('Use libdislocator')
 
 	def validate(self):
 		check_validate = super().validate()

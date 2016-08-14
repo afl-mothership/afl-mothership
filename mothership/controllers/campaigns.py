@@ -46,25 +46,19 @@ def new_campaign():
 		elif other:
 			shutil.copy(os.path.join(other, 'executable'), os.path.join(dir, 'executable'))
 
-		libs = os.path.join(dir, 'libraries')
-		if form.libraries.has_file():
-			os.makedirs(libs)
-			for lib in request.files.getlist('libraries'):
-				lib.save(os.path.join(libs, os.path.basename(lib.filename)))
-		elif other:
-			shutil.copytree(os.path.join(other, 'libraries'), libs)
-		else:
-			os.makedirs(libs)
+		for config_files in ['libraries', 'testcases', 'ld_preload']:
+			dest = os.path.join(dir, config_files)
+			if getattr(form, config_files).has_file():
+				os.makedirs(dest)
+				for lib in request.files.getlist(config_files):
+					lib.save(os.path.join(dest, os.path.basename(lib.filename)))
+			elif other:
+				shutil.copytree(os.path.join(other, 'config_files'), dest)
+			else:
+				os.makedirs(dest)
 
-		tests = os.path.join(dir, 'testcases')
-		if form.testcases.has_file():
-			os.makedirs(tests)
-			for test in request.files.getlist('testcases'):
-				test.save(os.path.join(tests, os.path.basename(test.filename)))
-		elif other:
-			shutil.copytree(os.path.join(other, 'testcases'), tests)
-		else:
-			os.makedirs(tests)
+		if form.use_libdislocator.data:
+			shutil.copy(os.path.join(current_app.config['DATA_DIRECTORY'], 'libdislocator.so'), os.path.join(dir, 'ld_preload'))
 
 		dictionary = os.path.join(dir, 'dictionary')
 		if form.dictionary.has_file():
@@ -92,7 +86,10 @@ def campaign(campaign_id):
 		if 'enable' in request.form:
 			campaign_model.active = request.form['enable'].lower() == 'true'
 			campaign_model.put()
-			flash('Campaign enabled', 'success')
+			if campaign_model.active:
+				flash('Campaign enabled', 'success')
+			else:
+				flash('Campaign disabled', 'success')
 		if 'reset' in request.form:
 			for fuzzer in campaign_model.fuzzers:
 				fuzzer.snapshots.delete()
@@ -134,7 +131,8 @@ def campaign(campaign_id):
 	heisenbugs = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=False)
 	ldd = get_ldd(campaign_model)
 	testcases = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'testcases'))
-	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs, testcases=testcases, ldd=ldd)
+	ld_preload = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'ld_preload'))
+	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs, testcases=testcases, ldd=ldd, ld_preload=ld_preload)
 
 
 def get_ldd(campaign_model):

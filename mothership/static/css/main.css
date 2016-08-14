@@ -35,6 +35,10 @@ th.shrink {
 	margin-bottom: 0px;
 }
 
+input[type=checkbox] {
+	width: 50px;
+}
+
 .box {
 	position: relative;
     margin-right: 0;

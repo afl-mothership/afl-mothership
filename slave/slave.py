@@ -52,35 +52,42 @@ def optimistic_parse(value):
 
 class AflInstance(threading.Thread):
 
-	def __init__(self, directory, testcases, sync_dir, name, dictionary, args, program, program_args):
+	def __init__(self, afl_directory, campaign_directory, name, afl_args, program, program_args):
 		super(AflInstance, self).__init__()
 
-		self.directory = directory
-		self.testcases = testcases
-		self.sync_dir = sync_dir
+		self.afl_directory = afl_directory
+		self.campaign_directory = campaign_directory
 		self.name = name
-		self.extra_args = args
-		self.dictionary = dictionary
+		self.afl_args = afl_args
 		self.program = program
-		self.program_args = program_args
+		self.program_args = []
+		for arg in program_args:
+			self.program_args.append(arg.replace('%%', campaign_directory))
 
 		self.process = None
 
 	def run(self):
-		args = [os.path.join(self.directory, './afl-fuzz'), '-i', self.testcases, '-o', self.sync_dir, '-S', self.name] + self.extra_args
-		if self.dictionary:
-			args += ['-x', self.dictionary]
-		args += ['--', self.program] + self.program_args
+		testcases = os.path.join(self.campaign_directory, 'testcases')
+		sync_dir = os.path.join(self.campaign_directory, 'sync_dir')
+		dictionary = os.path.join(self.campaign_directory, 'dictionary.txt')
+		program_path = os.path.join(self.campaign_directory, self.program)
+		args = [os.path.join(self.afl_directory, './afl-fuzz'), '-i', testcases, '-o', sync_dir, '-S', self.name] + self.afl_args
+		if os.path.exists(dictionary):
+			args += ['-x', dictionary]
+		args += ['--', program_path] + self.program_args
 
 		logger.info('Starting afl with %r' % ' '.join(args))
 		env = dict(os.environ)
+
 		if 'LD_LIBRARY_PATH' in env:
 			env['LD_LIBRARY_PATH'] = ':' + env['LD_LIBRARY_PATH']
 		else:
 			env['LD_LIBRARY_PATH'] = ''
 		env['LD_LIBRARY_PATH'] = os.path.join(os.path.dirname(self.program), 'libraries') + env['LD_LIBRARY_PATH']
 		env['AFL_IMPORT_FIRST'] = 'True'
-		env['AFL_PRELOAD'] = os.path.join(self.directory, './libdislocator.so')
+		env['AFL_PRELOAD'] = ''
+		for preload in os.listdir(os.path.join(self.campaign_directory, 'ld_preload')):
+			env['AFL_PRELOAD'] = os.path.join(self.campaign_directory, 'ld_preload', preload) + ' '
 		env['AFL_SKIP_CPUFREQ'] = 'True'
 		# env['AFL_NO_VAR_CHECK'] = 'True'
 		if DEBUG:
@@ -165,12 +172,11 @@ class MothershipSlave:
 		dictionary = os.path.join(self.campaign_directory, 'dictionary.txt')
 		self.instance = AflInstance(
 			self.directory,
-			self.testcases,
-			self.sync_dir,
+			self.campaign_directory,
 			self.name,
-			dictionary if os.path.exists(dictionary) else None,
 			self.args,
-			os.path.join(self.campaign_directory, self.program),
+
+			self.program,
 			self.program_args,
 		)
 		self.instance.daemon = True
@@ -291,15 +297,11 @@ def download_queue(download_url, directory, skip_dirs, executable_name=None):
 			urllib_request.urlretrieve(response['executable'], filename=executable_path)
 			os.chmod(executable_path, 0o755)
 
-			libraries_tar = os.path.join(directory, 'libraries.tar.gz')
-			urllib_request.urlretrieve(response['libraries'], filename=libraries_tar)
-			with tarfile.open(libraries_tar, 'r:') as tar:
-				tar.extractall(directory)
-
-			testcases_tar = os.path.join(directory, 'testcases.tar.gz')
-			urllib_request.urlretrieve(response['testcases'], filename=testcases_tar)
-			with tarfile.open(testcases_tar, 'r:') as tar:
-				tar.extractall(directory)
+			for download_tar in ['libraries', 'testcases', 'ld_preload']:
+				dest_tar = os.path.join(directory, download_tar + '.tar.gz')
+				urllib_request.urlretrieve(response[download_tar], filename=dest_tar)
+				with tarfile.open(dest_tar, 'r:') as tar:
+					tar.extractall(directory)
 
 			dictionary = os.path.join(directory, 'dictionary.txt')
 			if response['dictionary']:
@@ -339,9 +341,6 @@ def download_afl(mothership_url, directory):
 	afl = os.path.join(directory, 'afl-fuzz')
 	urllib_request.urlretrieve('%s/fuzzers/download/afl-fuzz' % mothership_url, filename=afl)
 	os.chmod(afl, 0o755)
-
-	libdislocator = os.path.join(directory, 'libdislocator.so')
-	urllib_request.urlretrieve('%s/fuzzers/download/libdislocator.so' % mothership_url, filename=libdislocator)
 
 
 def main(mothership_url, count):

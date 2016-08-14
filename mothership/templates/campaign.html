@@ -89,7 +89,7 @@
 			</div>
 			<!--<div class="col-md-2"></div>-->
 			<!--<div class="col-md-4"></div>-->
-			<div class="col-md-8">
+			<div class="col-md-4">
 				<h4>Executable Libraries</h4>
 				{% if ldd %}
 				<table class="table table-striped table-condensed table-hover table-bordered">
@@ -105,6 +105,19 @@
 				{% else %}
 				<p>LDD not supported on this platform</p>
 				{% endif %}
+			</div>
+
+			<div class="col-md-4">
+				<h4>LD PRELOAD</h4>
+				<table class="table table-striped table-condensed table-hover table-bordered">
+					<tbody>
+					{% for lib in ld_preload %}
+					<tr>
+						<td>{{ lib }}</td>
+					</tr>
+					{% endfor %}
+					</tbody>
+				</table>
 			</div>
 
 		</div>
