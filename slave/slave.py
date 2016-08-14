@@ -83,7 +83,7 @@ class AflInstance(threading.Thread):
 			env['LD_LIBRARY_PATH'] = ':' + env['LD_LIBRARY_PATH']
 		else:
 			env['LD_LIBRARY_PATH'] = ''
-		env['LD_LIBRARY_PATH'] = os.path.join(os.path.dirname(self.program), 'libraries') + env['LD_LIBRARY_PATH']
+		env['LD_LIBRARY_PATH'] = os.path.join(self.campaign_directory, 'libraries') + env['LD_LIBRARY_PATH']
 		env['AFL_IMPORT_FIRST'] = 'True'
 		env['AFL_PRELOAD'] = ''
 		for preload in os.listdir(os.path.join(self.campaign_directory, 'ld_preload')):
