@@ -58,7 +58,10 @@ class AflInstance(threading.Thread):
 		self.afl_directory = afl_directory
 		self.campaign_directory = campaign_directory
 		self.name = name
-		self.afl_args = afl_args
+		if afl_args:
+			self.afl_args = afl_args
+		else:
+			self.afl_args = ['-t', '200+']
 		self.program = program
 		self.program_args = []
 		for arg in program_args:
@@ -94,10 +97,7 @@ class AflInstance(threading.Thread):
 			self.process = subprocess.Popen(args, env=env)
 		else:
 			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-			for line in iter(self.process.stdout.readline, ""):
-				if not line:
-					break
-				sys.stdout.write(str(self.process.pid) + ' - ' + line.decode('ascii'))
+			print(self.process.communicate())
 
 		print('waiting on', self.process)
 		self.process.wait()
