@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import os
+import random
 import shutil
 import socket
 import subprocess
@@ -13,6 +14,8 @@ import logging
 import traceback
 
 import requests
+import time
+
 try:
 	from urllib import request as urllib_request
 except ImportError:
@@ -97,7 +100,10 @@ class AflInstance(threading.Thread):
 			self.process = subprocess.Popen(args, env=env)
 		else:
 			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-			print(self.process.communicate())
+			for line in iter(self.process.stdout.readline, ""):
+				if not line:
+					break
+				sys.stdout.write(str(self.process.pid) + ' - ' + line.decode('ascii'))
 
 		print('waiting on', self.process)
 		self.process.wait()
@@ -346,7 +352,11 @@ def download_afl(mothership_url, directory):
 def main(mothership_url, count):
 	with tempdir('mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
-		slaves = [MothershipSlave(mothership_url, directory) for _ in range(count)]
+		slaves = []
+		time.sleep(random.randint(0, 30))
+		for _ in range(count):
+			slaves.append(MothershipSlave(mothership_url, directory))
+			time.sleep(2)
 		campaigns = {slave.campaign_directory: slave for slave in slaves if slave.valid}
 
 		if not campaigns:
