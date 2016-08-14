@@ -53,7 +53,7 @@ def new_campaign():
 				for lib in request.files.getlist(config_files):
 					lib.save(os.path.join(dest, os.path.basename(lib.filename)))
 			elif other:
-				shutil.copytree(os.path.join(other, 'config_files'), dest)
+				shutil.copytree(os.path.join(other, config_files), dest)
 			else:
 				os.makedirs(dest)
 
@@ -65,7 +65,7 @@ def new_campaign():
 			form.dictionary.data.save(dictionary)
 			model.has_dictionary = True
 			model.commit()
-		elif other:
+		elif other and os.path.exists(os.path.join(other, 'dictionary')):
 			shutil.copy(os.path.join(other, 'dictionary'), os.path.join(dir, 'dictionary'))
 			model.has_dictionary = True
 			model.commit()
