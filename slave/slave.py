@@ -31,11 +31,12 @@ SNAPSHOT_FREQUENCY = 60
 
 
 class tempdir:
-	def __init__(self, prefix='tmp'):
+	def __init__(self, workingdir='/tmp/', prefix='tmp'):
 		self.prefix = prefix
+		self.workingdir = workingdir
 
 	def __enter__(self):
-		self.dir = tempfile.mkdtemp(prefix=self.prefix)
+		self.dir = tempfile.mkdtemp(prefix=self.prefix, dir=self.workingdir)
 		return self.dir
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
@@ -175,7 +176,6 @@ class MothershipSlave:
 			return
 
 		logger.info('Starting fuzzer in %s' % self.own_dir)
-		dictionary = os.path.join(self.campaign_directory, 'dictionary.txt')
 		self.instance = AflInstance(
 			self.directory,
 			self.campaign_directory,
@@ -239,7 +239,8 @@ class MothershipSlave:
 				for line in f.readlines():
 					key, value = line.replace('\n', '').split(':', 1)
 					status[key.strip()] = optimistic_parse(value[1:])
-			logger.info('%d - %r' % (self.instance.process.pid, status))
+
+			logger.info('%d - %r' % (self.id, status))
 
 			snapshots = []
 			with open(plot_file, 'r') as f:
@@ -349,8 +350,8 @@ def download_afl(mothership_url, directory):
 	os.chmod(afl, 0o755)
 
 
-def main(mothership_url, count):
-	with tempdir('mothership_afl_') as directory:
+def main(mothership_url, count, workingdir):
+	with tempdir(workingdir, 'mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
 		slaves = []
 		time.sleep(random.randint(0, 30))
@@ -395,6 +396,11 @@ if __name__ == '__main__':
 	except IndexError:
 		count = 1
 
-	main(mothership_url, count)
+	try:
+		workingdir = sys.argv[3]
+	except IndexError:
+		workingdir = '/tmp/'
+
+	main(mothership_url, count, workingdir)
 	logger.info('exiting')
 	sys.exit()
