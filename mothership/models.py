@@ -38,7 +38,10 @@ db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind
 # 	logger.debug("Total Time: %f", total)
 
 def init_db():
-	pass
+	try:
+		db.engine.execute(DDL('alter table campaign add column parent_id INTEGER;'))
+	except OperationalError:
+		pass
 
 
 # try:
@@ -131,6 +134,11 @@ class Campaign(Model, db.Model):
 	executable_name = db.Column(db.String(512))
 	executable_args = db.Column(db.String(1024))
 	afl_args = db.Column(db.String(1024))
+
+	parent_id = db.Column(db.Integer, db.ForeignKey('campaign.id'))
+	@property
+	def children(self):
+		return Campaign.all(parent_id=self.id)
 
 	def __init__(self, name):
 		self.name = name

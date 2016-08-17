@@ -1,0 +1,30 @@
+{%extends "base.html"%}
+{% from "includes/_formhelpers.html" import render_field %}
+
+{%block title%}Home{% endblock %}
+
+{%block body%}
+<div class="container">
+    <h1 class="text-center">{{ campaign.name }}</h1>
+
+    <div class="row">
+        <div class="col-md-2"></div>
+        <div class="col-md-8">
+            <form action="{{ url_for('campaigns.make_tests', campaign_id=campaign.id) }}" method="post" enctype="multipart/form-data">
+                {{ form.hidden_tag() }}
+
+				<div class="form-group">
+					{{ render_field(form.sizes) }}
+					{{ render_field(form.repeats) }}
+				</div>
+
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div>
+        <div class="col-md-2"></div>
+    </div>
+</div>
+
+
+{%endblock%}
+

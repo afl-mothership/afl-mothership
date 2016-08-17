@@ -1,5 +1,4 @@
 import shutil
-import statistics
 import subprocess
 import time
 import os
@@ -23,7 +22,7 @@ def list_campaigns():
 		flash('Missing libdislocator.so', 'danger')
 	if not os.path.exists(os.path.join(current_app.config['DATA_DIRECTORY'], 'afl-fuzz')):
 		flash('Missing afl-fuzz', 'danger')
-	return render_template('campaigns.html', campaigns=models.Campaign.query.all())
+	return render_template('campaigns.html', campaigns=models.Campaign.all(parent_id=None))
 
 @campaigns.route('/campaigns/new', methods=['GET', 'POST'])
 def new_campaign():
@@ -74,6 +73,47 @@ def new_campaign():
 		return redirect(request.args.get('next') or url_for('campaigns.campaign', campaign_id=model.id))
 	return render_template('new-campaign.html', form=form)
 
+@campaigns.route('/campaigns/make_tests/<int:campaign_id>', methods=['GET', 'POST'])
+def make_tests(campaign_id):
+	original = models.Campaign.get(id=campaign_id)
+	if not original:
+		return 'Campaign not found', 404
+	form = forms.MakeTestsForm()
+	if form.validate_on_submit():
+		to_create = []
+		for test_size in [int(e) for e in form.sizes.data.replace(',', ' ').split()]:
+			for repeat in range(form.repeats.data):
+				name = '%s | %d fuzzer%s | test %d' % (original.name, test_size, 's' if test_size > 1 else '', repeat+1)
+				if os.path.exists(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(name))):
+					flash('Failed to create tests - campaign "%s" already exists' % name, 'error')
+					return redirect(url_for('campaigns.campaign', campaign_id=original.id))
+				to_create.append((name, test_size))
+		original_dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(original.name))
+		for name, size in to_create:
+			copy = models.Campaign(name)
+			copy.active = original.active
+			copy.desired_fuzzers = size
+			copy.has_dictionary = original.has_dictionary
+			copy.executable_name = original.executable_name
+			copy.executable_args = original.executable_args
+			copy.afl_args = original.afl_args
+			copy.parent_id = original.id
+			copy.put()
+			dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(copy.name))
+			os.mkdir(dir)
+			for tocopy in ['executable', 'libraries', 'testcases', 'ld_preload', 'dictionary']:
+				original_path = os.path.join(original_dir, tocopy)
+				new_path = os.path.join(dir, tocopy)
+				if os.path.exists(original_path):
+					if os.path.isdir(original_path):
+						shutil.copytree(original_path, new_path)
+					else:
+						shutil.copy(original_path, new_path)
+		flash('Tests created', 'info')
+		return redirect(url_for('campaigns.campaign', campaign_id=original.id))
+	else:
+		return render_template('make-tests.html', campaign=original, form=form)
+
 @campaigns.route('/campaigns/<int:campaign_id>', methods=['GET', 'POST'])
 def campaign(campaign_id):
 	campaign_model = models.Campaign.get(id=campaign_id)
@@ -91,20 +131,22 @@ def campaign(campaign_id):
 			else:
 				flash('Campaign disabled', 'success')
 		if 'reset' in request.form:
-			for fuzzer in campaign_model.fuzzers:
-				fuzzer.snapshots.delete()
-				fuzzer.crashes.delete()
-			campaign_model.fuzzers.delete()
-			campaign_model.put()
-			try:
-				shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'sync_dir'))
-			except FileNotFoundError:
-				pass
-			try:
-				shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'crashes'))
-			except FileNotFoundError:
-				pass
+			reset_campaign(campaign_model)
 			flash('Campaign reset', 'success')
+		if 'activate_children' in request.form:
+			for child in campaign_model.children:
+				child.active = True
+				child.put()
+		if 'deactivate_children' in request.form:
+			for child in campaign_model.children:
+				child.active = False
+				child.put()
+		if 'delete_children' in request.form:
+			for child in campaign_model.children:
+				delete_campaign(child)
+		if 'reset_children' in request.form:
+			for child in campaign_model.children:
+				reset_campaign(child)
 		uploaded = 0
 		for lib in request.files.getlist('libraries'):
 			if lib.filename:
@@ -132,7 +174,7 @@ def campaign(campaign_id):
 	ldd = get_ldd(campaign_model)
 	testcases = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'testcases'))
 	ld_preload = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'ld_preload'))
-	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs, testcases=testcases, ldd=ldd, ld_preload=ld_preload)
+	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs, testcases=testcases, ldd=ldd, ld_preload=ld_preload, children=list(campaign_model.children))
 
 
 def get_ldd(campaign_model):
@@ -171,21 +213,12 @@ def get_ldd(campaign_model):
 
 @campaigns.route('/campaigns/delete/<int:campaign_id>', methods=['GET', 'POST'])
 def delete(campaign_id):
-	# TODO
+	# TODO styling for the page
 	if request.method == 'POST':
 		campaign_model = models.Campaign.get(id=campaign_id)
 		if not campaign_model:
 			return 'Campaign not found', 404
-		for fuzzer in campaign_model.fuzzers:
-			fuzzer.snapshots.delete()
-			fuzzer.crashes.delete()
-		campaign_model.fuzzers.delete()
-		campaign_model.delete()
-		dir = os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name))
-		try:
-			shutil.rmtree(dir)
-		except FileNotFoundError:
-			pass
+		delete_campaign(campaign_model)
 		flash('Campaign deleted', 'success')
 		return redirect(url_for('campaigns.list_campaigns'))
 	else:
@@ -194,6 +227,36 @@ def delete(campaign_id):
 			'<button type="submit" class="btn btn-danger" name="delete">Confirm</button>' \
 			'</form>'
 		return render_template_string(html)
+
+
+def delete_campaign(campaign_model):
+	for child in campaign_model.children:
+		delete_campaign(child)
+	for fuzzer in campaign_model.fuzzers:
+		fuzzer.snapshots.delete()
+		fuzzer.crashes.delete()
+	campaign_model.fuzzers.delete()
+	campaign_model.delete()
+	try:
+		shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name)))
+	except FileNotFoundError:
+		pass
+
+def reset_campaign(campaign_model):
+	for fuzzer in campaign_model.fuzzers:
+		fuzzer.snapshots.delete()
+		fuzzer.crashes.delete()
+	campaign_model.fuzzers.delete()
+	campaign_model.put()
+	try:
+		shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'sync_dir'))
+	except FileNotFoundError:
+		pass
+	try:
+		shutil.rmtree(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'crashes'))
+	except FileNotFoundError:
+		pass
+
 
 @campaigns.route('/campaigns/<int:campaign_id>/crashes')
 def analysis_queue_campaign(campaign_id):

@@ -55,6 +55,29 @@ class CampaignForm(Form):
 
 		return True
 
+class MakeTestsForm(Form):
+	sizes = StringField('Sizes of each test', validators=[validators.required()])
+	repeats = IntegerField('Number of repeats per size', validators=[validators.required()])
+
+	def validate(self):
+		check_validate = super().validate()
+		if not check_validate:
+			return False
+
+		sizes_list = self.sizes.data.replace(',', ' ').split()
+		if len(sizes_list) == 0:
+			self.sizes.errors.append('Must have at least one ')
+			return False
+
+		for elem in sizes_list:
+			try:
+				int(elem)
+			except ValueError:
+				self.sizes.errors.append('Could not parse "%s" as int' % elem)
+				return False
+
+		return True
+
 # class UploadImages(Form):
 #
 #
