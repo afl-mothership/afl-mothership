@@ -98,9 +98,9 @@ class AflInstance(threading.Thread):
 		env['AFL_SKIP_CPUFREQ'] = 'True'
 		# env['AFL_NO_VAR_CHECK'] = 'True'
 		if DEBUG:
-			self.process = subprocess.Popen(args, env=env)
+			self.process = subprocess.Popen(args, env=env, cwd=self.campaign_directory)
 		else:
-			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=self.campaign_directory)
 			for line in iter(self.process.stdout.readline, ""):
 				if not line:
 					break
