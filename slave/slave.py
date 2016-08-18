@@ -354,10 +354,9 @@ def main(mothership_url, count, workingdir):
 	with tempdir(workingdir, 'mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
 		slaves = []
-		time.sleep(random.randint(0, 30))
 		for _ in range(count):
 			slaves.append(MothershipSlave(mothership_url, directory))
-			time.sleep(2)
+			time.sleep(0.5)
 		campaigns = {slave.campaign_directory: slave for slave in slaves if slave.valid}
 
 		if not campaigns:
