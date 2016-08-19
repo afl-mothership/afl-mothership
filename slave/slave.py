@@ -23,6 +23,10 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler('slave.log')
+logger.addHandler(file_handler)
+console_handler = logging.StreamHandler()
+logger.addHandler(console_handler)
 
 SHARE_WHEN_POSSIBLE = False
 DEBUG = False
@@ -100,11 +104,12 @@ class AflInstance(threading.Thread):
 		if DEBUG:
 			self.process = subprocess.Popen(args, env=env, cwd=self.campaign_directory)
 		else:
-			self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=self.campaign_directory)
-			for line in iter(self.process.stdout.readline, ""):
-				if not line:
-					break
-				sys.stdout.write(str(self.process.pid) + ' - ' + line.decode('ascii'))
+			self.process = subprocess.Popen(args,
+			                                stdout=open(os.path.join('./logs', self.name + '_stdout.txt'), 'wb'),
+			                                stderr=open(os.path.join('./logs', self.name + '_stderr.txt'), 'wb'),
+			                                env=env,
+			                                cwd=self.campaign_directory
+			                                )
 
 		print('waiting on', self.process)
 		self.process.wait()
@@ -400,6 +405,11 @@ if __name__ == '__main__':
 	except IndexError:
 		workingdir = '/tmp/'
 
+
+	try:
+		os.mkdir('logs')
+	except:
+		pass
 	main(mothership_url, count, workingdir)
 	logger.info('exiting')
 	sys.exit()
