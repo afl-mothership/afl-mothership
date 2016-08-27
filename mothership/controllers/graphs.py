@@ -1,10 +1,10 @@
-import statistics
-from collections import defaultdict
+from itertools import tee
+from math import ceil
+from operator import itemgetter
+from statistics import mean
 
-import time
 from flask import Blueprint, jsonify, request, render_template
 from sqlalchemy import desc
-from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from mothership import models
@@ -42,7 +42,6 @@ def get_starts(fuzzers):
 	:param fuzzers: the list of fuzzers to compute the start times for
 	:return: the list of start values
 	"""
-	#run_times = [(f.start_time, f.snapshots.order_by(desc(models.FuzzerSnapshot.unix_time)).first().unix_time) for f in fuzzers]
 	run_times = [(f.start_time, f.last_update) for f in fuzzers]
 	start, stop = run_times[0]
 	starts = []
@@ -252,57 +251,111 @@ def snapshot_property(campaign_id, property_name):
 	if not campaign.started or not campaign.fuzzers or not any(fuzzer.snapshots.first() for fuzzer in campaign.fuzzers):
 		return jsonify()
 
-	mode = request.args.get('mode', 'multi')
+	# mode = request.args.get('mode', 'multi')
 	fuzzers = campaign.fuzzers.filter(models.FuzzerInstance.last_update)
-	if mode == 'multi':
-		data = [(
-			fuzzer.name,
-			[[
-				(snapshot.unix_time - start) * 1000,
-				getattr(snapshot, property_name)
-			] for snapshot in fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name))]
-		) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)]
-	elif mode == 'avg':
-		data = {}
-		#sub = models.db_session.query(func.min(crash_alias.created)).filter(getattr(models.Crash, consider_unique) == getattr(crash_alias, consider_unique))
-		sub = models.FuzzerInstance.all().filter_by(campaign_id=campaign_id).with_entities(models.FuzzerInstance.id)
-		q = models.FuzzerSnapshot.all().filter(models.FuzzerSnapshot.instance_id.in_(sub), models.FuzzerSnapshot.id % 10 == 0)
-
-
-		ts = {fuzzer.id: {} for fuzzer in fuzzers}
-		for x in q:
-			ts[x.instance_id].append([x.unix_time, getattr(x, property_name)])
-
-		data = [
-			[name, data] for name, data in ts.items()
-		]
-
-		#print(len(list(q)))
-		# start = campaign.fuzzers.order_by(models.FuzzerInstance.start_time).first().start_time
-		# end = campaign.fuzzers.order_by(desc(models.FuzzerInstance.last_update)).first().last_update
-		#
-		# print(start, end)
-		# steps = 32
-		# print(list(range(start, end, (end - start) // steps)))
-		#
-		# data = []
-		# for step_time in range(start, end, (end - start) // steps):
-		# 	ddata = []
-		# 	print(step_time)
-		# 	for fuzzer in campaign.fuzzers:
-		# 		print(fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name)))
-		# 		snapshot = fuzzer.snapshots.filter(models.FuzzerSnapshot.unix_time < step_time).order_by(desc(models.FuzzerSnapshot.unix_time)).first()
-		# 		ddata.append(getattr(snapshot, property_name) if snapshot else 0)
-		# 	data.append([(step_time - start) * 1000, min(ddata) if ddata else 0, max(ddata) if ddata else 0])
-		# print(data)
-		# data = [['avg', data, 'arearange']]
-		# for fuzzer in campaign.fuzzers:
-		# 	for snapshot in fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name)):
-		# 		data[snapshot.unix_time]
-
-
+	# if mode == 'multi':
+	data = [(
+		fuzzer.name,
+		[[
+			(snapshot.unix_time - start) * 1000,
+			getattr(snapshot, property_name)
+		] for snapshot in fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name))]
+	) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)]
+	# elif mode == 'avg':
+	# 	sub = models.FuzzerInstance.all().filter_by(campaign_id=campaign_id).with_entities(models.FuzzerInstance.id)
+	# 	q = models.FuzzerSnapshot.all().filter(models.FuzzerSnapshot.instance_id.in_(sub), models.FuzzerSnapshot.id % 10 == 0)
+	# 	ts = {fuzzer.id: {} for fuzzer in fuzzers}
+	# 	for x in q:
+	# 		ts[x.instance_id].append([x.unix_time, getattr(x, property_name)])
+	# 	data = [
+	# 		[name, data] for name, data in ts.items()
+	# 	]
 	return graph(property_name.replace('_', ' ').title(), data, legend=False)
 
+
+def get_activity_periods(campaign):
+	r = []
+	valid_instances = campaign.fuzzers.filter(models.FuzzerInstance.execs_done > 0)
+	start = 0
+	running = 0
+	duration = 0
+	startstop_events = sorted(
+		[(i, i.snapshots.order_by(models.FuzzerSnapshot.unix_time).first().unix_time, True) for i in valid_instances] +
+		[(i, i.snapshots.order_by(desc(models.FuzzerSnapshot.unix_time)).first().unix_time, False) for i in valid_instances],
+		key=itemgetter(1))
+	for instance, t, event in startstop_events:
+		if event:
+			if not running:
+				instances = []
+				start = t
+			instances.append(instance)
+			running += 1
+		else:
+			running -= 1
+			if not running:
+				r.append((start, t, instances))
+				duration += t - start
+	return r, duration
+
+
+def get_values(campaign, property_name, resolution=100):
+	periods, duration = get_activity_periods(campaign)
+	running_time = 0
+	data = []
+	for start, stop, instances in periods:
+		duration = stop - start
+		for instance in instances:
+			for snapshot in instance.snapshots:
+				now = (snapshot.unix_time - start + running_time)
+				value = getattr(snapshot, property_name)
+				data.append((now*1000, value))
+			data.append(data[-1])
+			data.append((data[-1][0], None))
+		running_time += duration
+	return data
+
+
+def get_average(campaign, property_name, resolution=100):
+	periods, duration = get_activity_periods(campaign)
+	step = duration / resolution
+	running_time = 0
+	points = [[] for _ in range(resolution+1)]
+	data = []
+	for start, stop, instances in periods:
+		start_i = ceil(running_time / step)
+		for instance in instances:
+			i = start_i
+			last_snapshot = None
+			for snapshot in instance.snapshots.order_by(models.FuzzerSnapshot.unix_time):
+				current_time = (snapshot.unix_time - start + running_time)
+				if last_snapshot:
+					while last_time <= i * step <= current_time:
+						points[i].append(getattr(snapshot, property_name))
+						i += 1
+				last_time = current_time
+				last_snapshot = snapshot
+
+		running_time += stop - start
+		end_i = ceil(running_time / step)
+		for i in range(start_i, end_i):
+			data.append((i * step * 1000, mean(points[i])))
+			i += 1
+		data.append((data[-1][0]+1, None))
+	return data
+
+@graphs.route('/graphs/compare/<int:campaign_id>/<property_name>')
+def children_overview(campaign_id, property_name):
+	campaign = models.Campaign.get(id=campaign_id)
+	if not campaign:
+		return 'Campaign not found', 404
+
+	data = []
+	for child in campaign.children:
+		data.append((
+			child.name + ' (%d)' % child.id,
+			get_average(child, property_name)
+		))
+	return graph('', data)
 
 
 @graphs.route('/graph')
