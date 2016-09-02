@@ -172,8 +172,12 @@ def campaign(campaign_id):
 	))
 	heisenbugs = campaign_model.crashes.filter_by(analyzed=True, crash_in_debugger=False)
 	ldd = get_ldd(campaign_model)
-	testcases = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'testcases'))
-	ld_preload = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'ld_preload'))
+	try:
+		testcases = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'testcases'))
+		ld_preload = os.listdir(os.path.join(current_app.config['DATA_DIRECTORY'], secure_filename(campaign_model.name), 'ld_preload'))
+	except FileNotFoundError:
+		testcases = []
+		ld_preload = []
 	return render_template('campaign.html', campaign=campaign_model, crashes=crashes, heisenbugs=heisenbugs, testcases=testcases, ldd=ldd, ld_preload=ld_preload, children=list(campaign_model.children))
 
 
