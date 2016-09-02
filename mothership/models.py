@@ -38,10 +38,7 @@ db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind
 # 	logger.debug("Total Time: %f", total)
 
 def init_db():
-	try:
-		db.engine.execute(DDL('alter table campaign add column parent_id INTEGER;'))
-	except OperationalError:
-		pass
+	return
 
 
 # try:
@@ -149,7 +146,11 @@ class Campaign(Model, db.Model):
 
 	@property
 	def active_fuzzers(self):
-		return sum(i.running for i in self.fuzzers)
+		return sum(i.running for i in self.fuzzers if not i.master)
+
+	@property
+	def master_fuzzer(self):
+		return self.fuzzers.filter_by(master=True).first()
 
 	@property
 	def num_executions(self):
@@ -179,6 +180,7 @@ class FuzzerInstance(Model, db.Model):
 	crashes = db.relationship('Crash', backref='fuzzer', lazy='dynamic')
 	hostname = db.Column(db.String(128))
 	terminated = db.Column(db.Boolean(), default=False)
+	master = db.Column(db.Boolean(), default=False)
 
 	start_time = db.Column(db.Integer())
 	last_update = db.Column(db.Integer())
@@ -264,7 +266,3 @@ class Crash(Model, db.Model):
 	exploitable_hash = db.Column(db.String(64))
 	exploitable_data = db.Column(JsonType)
 	frames = db.Column(JsonType)
-
-
-class GraphCache(Model, db.Model):
-	__tablename__ = 'graphcache'

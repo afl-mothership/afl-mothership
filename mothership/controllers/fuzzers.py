@@ -1,10 +1,7 @@
 import glob
 import io
-import json
 import os
-import subprocess
 import tarfile
-import tempfile
 import random
 
 import time
@@ -35,13 +32,27 @@ def get_best_campaign():
 @fuzzers.route('/fuzzers/register')
 def register():
 	hostname = request.args.get('hostname')
-	campaign = get_best_campaign()
-	if not campaign:
-		return 'No active campaigns', 404
-	instance = models.FuzzerInstance.create(hostname=hostname)
-	instance.start_time = time.time()
-	campaign.fuzzers.append(instance)
-	campaign.commit()
+	master = request.args.get('master')
+
+	if not master:
+		campaign = get_best_campaign()
+		if not campaign:
+			models.Campaign.unlock()
+			return 'No active campaigns', 404
+		instance = models.FuzzerInstance.create(hostname=hostname)
+		instance.start_time = time.time()
+		campaign.fuzzers.append(instance)
+		campaign.commit()
+	else:
+		campaign = models.Campaign.get(id=master)
+		if not campaign:
+			return 'Could not find specified campaign', 404
+		if campaign.fuzzers.filter_by(master=True).first():
+			return 'Campaign already has a master', 400
+		instance = models.FuzzerInstance.create(hostname=hostname, master=True)
+		instance.start_time = time.time()
+		campaign.fuzzers.append(instance)
+		campaign.commit()
 
 	# avoid all hosts uploading at the same time from reporting at the same time
 	deviation = random.randint(15, 30)
@@ -69,6 +80,15 @@ def terminate(instance_id):
 	instance.update(terminated=True)
 	instance.commit()
 	return jsonify()
+
+
+@fuzzers.route('/fuzzers/is_active/<int:campaign_id>', methods=['GET'])
+def is_active(campaign_id):
+	campaign = models.Campaign.get(id=campaign_id)
+	if not campaign:
+		return 'Campaign not found', 404
+	return jsonify(active=bool(campaign.active and campaign.active_fuzzers))
+
 
 @fuzzers.route('/fuzzers/submit/<int:instance_id>', methods=['POST'])
 def submit(instance_id):

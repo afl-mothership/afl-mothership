@@ -1,3 +1,5 @@
+import datetime
+from collections import defaultdict
 from itertools import tee
 from math import ceil
 from operator import itemgetter
@@ -10,26 +12,9 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from mothership import models
 from sqlalchemy import func
 
+
+
 graphs = Blueprint('graphs', __name__)
-
-
-# def trace(snapshots, property_name, starttime=None):
-# 	try:
-# 		start = snapshots[0].unix_time
-# 	except IndexError:
-# 		return {}
-# 	if starttime:
-# 		start = starttime
-# 	x = []
-# 	y = []
-# 	for snapshot in snapshots:
-# 		x.append((snapshot.unix_time-start)*1000)
-# 		y.append(getattr(snapshot, property_name))
-# 	return {'x': x, 'y': y}
-# def crashes_at(fuzzer, time):
-# 	q = models.Crash.query.filter(models.Crash.created < time).filter()
-# 	print(q)
-# 	return q.count()
 
 def get_starts(fuzzers):
 	"""
@@ -52,6 +37,29 @@ def get_starts(fuzzers):
 		stop = n_stop
 		starts.append(start)
 	return starts
+
+def get_activity_periods(instances):
+	r = []
+	start = 0
+	running = 0
+	duration = 0
+	startstop_events = sorted(
+		[(i, i.snapshots.order_by(models.FuzzerSnapshot.unix_time).first().unix_time, True) for i in instances] +
+		[(i, i.snapshots.order_by(desc(models.FuzzerSnapshot.unix_time)).first().unix_time, False) for i in instances],
+		key=itemgetter(1))
+	for instance, t, event in startstop_events:
+		if event:
+			if not running:
+				instances = []
+				start = t
+			instances.append(instance)
+			running += 1
+		else:
+			running -= 1
+			if not running:
+				r.append((start, t, instances))
+				duration += t - start
+	return r, duration
 
 def unique_crashes(campaign_id, consider_unique, **crash_filter):
 	r = []
@@ -191,57 +199,6 @@ def aggregated(campaign_id):
 	])
 
 
-# @graphs.route('/graphs/campaign/<int:campaign_id>/breakdown')
-# def breakdown(campaign_id):
-# 	campaign = models.Campaign.get(id=campaign_id)
-# 	if not campaign.started or not models.Crash.get(campaign_id=campaign_id):
-# 		return jsonify()
-# 	crashes = models.Crash.query \
-# 		.filter_by(campaign_id=campaign.id, analyzed=True, crash_in_debugger=True) \
-# 		.group_by(models.Crash.backtrace, models.Crash.instance_id) \
-# 		.order_by(models.Crash.instance_id)
-# 	counted = set()
-# 	results = defaultdict(int)
-# 	for crash in crashes:
-# 		if crash.backtrace not in counted:
-# 			results[crash.instance_id] += 1
-# 			counted.add(crash.backtrace)
-# 	return graph(
-# 		'Return Per Fuzzer',
-# 		#**{str(k): v for k, v in results.items()},
-# 		chart_type='column'
-# 	)
-
-	# fuzzers = [f for f in campaign.fuzzers.order_by(models.FuzzerInstance.start_time) if f.started]
-	# fuzzer_map = {f.id: f for f in fuzzers}
-	# starts = dict(zip((f.id for f in fuzzers), get_starts(fuzzers)))
-	# results = defaultdict(lambda: [0, 0, 0, []])  # last_created, last_crashes, this_crashes, series
-	# for crash in unique_crashes(campaign.id, 'backtrace'):
-	# 	created = (crash.created - starts[crash.instance_id]) * 1000
-	# 	last_created, last_crashes, this_crashes, series = results[crash.instance_id]
-	# 	if last_created == created:
-	# 		this_crashes += 1
-	# 	else:
-	# 		series.append([last_created, last_crashes])
-	# 		series.append([last_created + 1, this_crashes])
-	# 		last_created, last_crashes, this_crashes = created, this_crashes, this_crashes + 1
-	# 	results[crash.instance_id] = last_created, last_crashes, this_crashes, series
-	# for instance_id in results:
-	# 	last_created, last_crashes, this_crashes, series = results[instance_id]
-	# 	results[instance_id][3].append([(fuzzer_map[instance_id].last_update - starts[instance_id]) * 1000, last_crashes])
-	# return graph('Distinct Addresses', [
-	# 	(str(instance_id), series) for instance_id, (last_created, last_crashes, this_crashes, series) in results.items()
-	# ])
-
-
-# @graphs.route('/graphs/campaign/<int:campaign_id>/fuzzer_overlap')
-# def fuzzer_overlap(campaign_id):
-# 	campaign = models.Campaign.get(id=campaign_id)
-# 	if not campaign.started or not models.FuzzerSnapshot.get(campaign_id=campaign_id):
-# 		return jsonify()
-# 	return graph('', [])
-
-
 @graphs.route('/graphs/campaign/<int:campaign_id>/<property_name>')
 def snapshot_property(campaign_id, property_name):
 	if not hasattr(models.FuzzerSnapshot, property_name) or not type(getattr(models.FuzzerSnapshot, property_name)) is InstrumentedAttribute:
@@ -251,111 +208,32 @@ def snapshot_property(campaign_id, property_name):
 	if not campaign.started or not campaign.fuzzers or not any(fuzzer.snapshots.first() for fuzzer in campaign.fuzzers):
 		return jsonify()
 
-	# mode = request.args.get('mode', 'multi')
-	fuzzers = campaign.fuzzers.filter(models.FuzzerInstance.last_update)
-	# if mode == 'multi':
-	data = [(
-		fuzzer.name,
-		[[
-			(snapshot.unix_time - start) * 1000,
-			getattr(snapshot, property_name)
-		] for snapshot in fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name))]
-	) for start, fuzzer in zip(get_starts(fuzzers), fuzzers)]
-	# elif mode == 'avg':
-	# 	sub = models.FuzzerInstance.all().filter_by(campaign_id=campaign_id).with_entities(models.FuzzerInstance.id)
-	# 	q = models.FuzzerSnapshot.all().filter(models.FuzzerSnapshot.instance_id.in_(sub), models.FuzzerSnapshot.id % 10 == 0)
-	# 	ts = {fuzzer.id: {} for fuzzer in fuzzers}
-	# 	for x in q:
-	# 		ts[x.instance_id].append([x.unix_time, getattr(x, property_name)])
-	# 	data = [
-	# 		[name, data] for name, data in ts.items()
-	# 	]
-	return graph(property_name.replace('_', ' ').title(), data, legend=False)
+	fuzzers = campaign.fuzzers.filter(models.FuzzerInstance.execs_done > 0)
+	master = campaign.master_fuzzer
 
-
-def get_activity_periods(campaign):
-	r = []
-	valid_instances = campaign.fuzzers.filter(models.FuzzerInstance.execs_done > 0)
-	start = 0
-	running = 0
-	duration = 0
-	startstop_events = sorted(
-		[(i, i.snapshots.order_by(models.FuzzerSnapshot.unix_time).first().unix_time, True) for i in valid_instances] +
-		[(i, i.snapshots.order_by(desc(models.FuzzerSnapshot.unix_time)).first().unix_time, False) for i in valid_instances],
-		key=itemgetter(1))
-	for instance, t, event in startstop_events:
-		if event:
-			if not running:
-				instances = []
-				start = t
-			instances.append(instance)
-			running += 1
-		else:
-			running -= 1
-			if not running:
-				r.append((start, t, instances))
-				duration += t - start
-	return r, duration
-
-
-def get_values(campaign, property_name, resolution=100):
-	periods, duration = get_activity_periods(campaign)
-	running_time = 0
 	data = []
-	for start, stop, instances in periods:
-		duration = stop - start
-		for instance in instances:
-			for snapshot in instance.snapshots:
-				now = (snapshot.unix_time - start + running_time)
-				value = getattr(snapshot, property_name)
-				data.append((now*1000, value))
-			data.append(data[-1])
-			data.append((data[-1][0], None))
-		running_time += duration
-	return data
-
-
-def get_average(campaign, property_name, resolution=100):
-	periods, duration = get_activity_periods(campaign)
-	step = duration / resolution
+	master_data = []
+	activity_periods, _ = get_activity_periods(fuzzers.filter_by(master=False))
 	running_time = 0
-	points = [[] for _ in range(resolution+1)]
-	data = []
-	for start, stop, instances in periods:
-		start_i = ceil(running_time / step)
-		for instance in instances:
-			i = start_i
-			last_snapshot = None
-			for snapshot in instance.snapshots.order_by(models.FuzzerSnapshot.unix_time):
-				current_time = (snapshot.unix_time - start + running_time)
-				if last_snapshot:
-					while last_time <= i * step <= current_time:
-						points[i].append(getattr(snapshot, property_name))
-						i += 1
-				last_time = current_time
-				last_snapshot = snapshot
-
+	for start, stop, instances in activity_periods:
+		for fuzzer in instances:
+			data.append((
+				fuzzer.name, [(
+					((snapshot.unix_time - start) + running_time) * 1000,
+					getattr(snapshot, property_name)
+				) for snapshot in fuzzer.snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name))]
+			))
+		if master:
+			master_snapshots = master.snapshots.filter(start < models.FuzzerSnapshot.unix_time, models.FuzzerSnapshot.unix_time < stop)
+			for snapshot in master_snapshots.with_entities(models.FuzzerSnapshot.unix_time, getattr(models.FuzzerSnapshot, property_name)):
+				master_data.append((((snapshot.unix_time - start) + running_time) * 1000, getattr(snapshot, property_name)))
 		running_time += stop - start
-		end_i = ceil(running_time / step)
-		for i in range(start_i, end_i):
-			data.append((i * step * 1000, mean(points[i])))
-			i += 1
-		data.append((data[-1][0]+1, None))
-	return data
-
-@graphs.route('/graphs/compare/<int:campaign_id>/<property_name>')
-def children_overview(campaign_id, property_name):
-	campaign = models.Campaign.get(id=campaign_id)
-	if not campaign:
-		return 'Campaign not found', 404
-
-	data = []
-	for child in campaign.children:
+	if master:
 		data.append((
-			child.name + ' (%d)' % child.id,
-			get_average(child, property_name)
+			'Master Instance',
+			master_data
 		))
-	return graph('', data)
+	return graph(property_name.replace('_', ' ').title(), data, legend=False)
 
 
 @graphs.route('/graph')
@@ -365,7 +243,3 @@ def render_graph():
 		return 'Specify a graph URL in the request', 400
 	return render_template('graph.html', url=request.host_url[:-1] + url)
 
-
-@graphs.route('/graph/staticdata')
-def staticdata():
-	return open('C:\\tools\\foo.txt').read()

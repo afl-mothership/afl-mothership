@@ -40,7 +40,6 @@
 				<td><b>{{ campaign.name }}</b></td>
 				<td>{% if campaign.active %}Active{% else %}Inactive{% endif %}</td>
 				<td>{{ campaign.active_fuzzers }}/{{ campaign.desired_fuzzers if campaign.active else 0 }}</td>
-				<!--<td>A</td>-->
 				<td>{{ campaign.bitmap_cvg[0] | round(1) }}%</td>
 				<td>{{ campaign.num_executions }}</td>
 				<td>{{ campaign.num_crashes }}</td>
@@ -91,7 +90,13 @@
 					</tr>
 					<tr>
 						<th class="shrink">Active Instances</th>
-						<td>{{ campaign.active_fuzzers }}/{{ campaign.desired_fuzzers if campaign.active else 0 }}</td>
+						<td>{{ campaign.active_fuzzers }}/{{ campaign.desired_fuzzers if campaign.active else 0 }}
+							{% if campaign.master_fuzzer and campaign.master_fuzzer.running %}
+								+ 1 Active Master
+							{% elif campaign.master_fuzzer %}
+								+ 1 Waiting Master
+							{% endif %}
+						</td>
 					</tr>
 					</tbody>
 				</table>

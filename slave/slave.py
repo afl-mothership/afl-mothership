@@ -2,7 +2,6 @@
 from __future__ import print_function
 
 import os
-import random
 import shutil
 import socket
 import subprocess
@@ -82,12 +81,12 @@ class AflInstance(threading.Thread):
 		sync_dir = os.path.join(self.campaign_directory, 'sync_dir')
 		dictionary = os.path.join(self.campaign_directory, 'dictionary.txt')
 		program_path = os.path.join(self.campaign_directory, self.program)
-		args = [os.path.join(self.afl_directory, './afl-fuzz'), '-i', testcases, '-o', sync_dir, '-S', self.name] + self.afl_args
+		args = self.get_args(sync_dir, testcases)
 		if os.path.exists(dictionary):
 			args += ['-x', dictionary]
 		args += ['--', program_path] + self.program_args
 
-		logger.info('Starting afl with %r' % ' '.join(args))
+		logger.info('Starting afl with %r' % args)
 		env = dict(os.environ)
 
 		if 'LD_LIBRARY_PATH' in env:
@@ -117,11 +116,25 @@ class AflInstance(threading.Thread):
 		if self.process.returncode != 0:
 			raise Exception("Process exited with %d" % self.process.returncode)
 
+	def get_args(self, sync_dir, testcases):
+		return [os.path.join(self.afl_directory, './afl-fuzz'), '-i', testcases, '-o', sync_dir, '-S', self.name] + self.afl_args
+
 	def terminate(self):
 		self.process.terminate()
 
 
 class MothershipSlave:
+
+	def register(self, mothership_url):
+		try:
+			logger.info('Registering slave')
+			request = requests.get(mothership_url + '/fuzzers/register?hostname=%s' % socket.gethostname())
+			if request.status_code == 404:
+				logger.error('No more campaigns requiring fuzzers')
+				return None
+			return request.json()
+		except requests.ConnectionError as e:
+			raise Exception('Could not connect to %s' % mothership_url, e)
 
 	def __init__(self, mothership_url, directory):
 		self.mothership_url = mothership_url
@@ -136,35 +149,30 @@ class MothershipSlave:
 		self.upload_timer = None
 		self.submit_timer = None
 
-		try:
-			logger.info('Registering slave')
-			request = requests.get(mothership_url + '/fuzzers/register?hostname=%s' % socket.gethostname())
-			if request.status_code == 404:
-				logger.error('No more campaigns requiring fuzzers')
-				self.valid = False
-				return
+		instance_params = self.register(mothership_url)
+		if not instance_params:
+			self.valid = False
+			return
+		else:
 			self.valid = True
-			register = request.json()
-		except requests.ConnectionError as e:
-			raise Exception('Could not connect to %s' % mothership_url, e)
 
-		self.id = register['id']
+		self.id = instance_params['id']
 		logger.info('Slave registered with id=%d' % self.id)
 
-		self.name = register['name']
-		self.campaign_name = register['campaign_name']
-		self.campaign_id = register['campaign_id']
-		self.download_url = register['download']
-		self.upload_url = register['upload']
-		self.submit_url = register['submit']
-		self.submit_crash = register['submit_crash']
+		self.name = instance_params['name']
+		self.campaign_name = instance_params['campaign_name']
+		self.campaign_id = instance_params['campaign_id']
+		self.download_url = instance_params['download']
+		self.upload_url = instance_params['upload']
+		self.submit_url = instance_params['submit']
+		self.submit_crash = instance_params['submit_crash']
 
-		self.program = register['program']
-		self.program_args = register['program_args']
-		self.args = register['args']
-		self.upload_in = register['upload_in']
+		self.program = instance_params['program']
+		self.program_args = instance_params['program_args']
+		self.args = instance_params['args']
+		self.upload_in = instance_params['upload_in']
 
-		self.campaign_directory = os.path.join(directory, register['campaign_name'])
+		self.campaign_directory = os.path.join(directory, instance_params['campaign_name'])
 		if not SHARE_WHEN_POSSIBLE:
 			self.campaign_directory += '_' + str(self.id)
 		self.testcases = os.path.join(self.campaign_directory, 'testcases')
@@ -245,6 +253,7 @@ class MothershipSlave:
 					key, value = line.replace('\n', '').split(':', 1)
 					status[key.strip()] = optimistic_parse(value[1:])
 
+			# FIXME: there is an where process is sometimes None and this doesn't work even though the process is running on the host
 			logger.info('%d - %r' % (self.id, status))
 
 			snapshots = []
@@ -279,7 +288,7 @@ class MothershipSlave:
 
 			if response.json()['terminate']:
 				logger.warn('Terminating instance %d' % self.id)
-				requests.post('%s/fuzzers/terminate/%d' % (mothership_url, self.id))
+				requests.post('%s/fuzzers/terminate/%d' % (self.mothership_url, self.id))
 				self.instance.terminate()
 				self.upload_timer.cancel()
 				return
@@ -349,13 +358,13 @@ def download_queue(download_url, directory, skip_dirs, executable_name=None):
 
 
 def download_afl(mothership_url, directory):
-	logger.info('Downloading afl-fuzz and libdislocator.so to %s', mothership_url)
+	logger.info('Downloading afl-fuzz to %s', mothership_url)
 	afl = os.path.join(directory, 'afl-fuzz')
 	urllib_request.urlretrieve('%s/fuzzers/download/afl-fuzz' % mothership_url, filename=afl)
 	os.chmod(afl, 0o755)
 
 
-def main(mothership_url, count, workingdir):
+def run_slaves(mothership_url, count, workingdir):
 	with tempdir(workingdir, 'mothership_afl_') as directory:
 		logger.info('Starting %d slave(s) in %s' % (count, directory))
 		slaves = []
@@ -386,8 +395,7 @@ def main(mothership_url, count, workingdir):
 			slave.join()
 			print('finished waiting on', slave)
 
-
-if __name__ == '__main__':
+def main():
 	try:
 		mothership_url = sys.argv[1]
 	except IndexError:
@@ -405,11 +413,14 @@ if __name__ == '__main__':
 	except IndexError:
 		workingdir = '/tmp/'
 
-
 	try:
 		os.mkdir('logs')
 	except:
 		pass
-	main(mothership_url, count, workingdir)
+	run_slaves(mothership_url, count, workingdir)
 	logger.info('exiting')
 	sys.exit()
+
+
+if __name__ == '__main__':
+	main()
