@@ -178,6 +178,10 @@
 			 data-graph="{{ url_for('graphs.snapshot_property', campaign_id=campaign.id, property_name='map_size') }}"
 			 data-title="Map Size">
 		</div>
+		<div id="paths-total" class="chart"
+			 data-graph="{{ url_for('graphs.snapshot_property', campaign_id=campaign.id, property_name='paths_total') }}"
+			 data-title="Paths Discovered">
+		</div>
 		<br/>
 		<div id="crashes" class="chart"
 			 data-graph="{{ url_for('graphs.snapshot_property', campaign_id=campaign.id, property_name='unique_crashes') }}"
