@@ -1,20 +1,30 @@
-#!/usr/bin/env python3
-import asyncio
-import json
-import os
-import random
-import shutil
-import tempfile
+#!/usr/bin/env python
+from __future__ import print_function
 
-import functools
-import requests
+import os
+try:
+	import queue
+except ImportError:
+	import Queue as queue
+import shutil
 import subprocess
 import sys
-from textwrap import wrap
-from itertools import zip_longest
-
+import signal
+import tarfile
+import tempfile
+import threading
+import requests
+import logging
+import json
+import atexit
 import time
 
+try:
+	from urllib import request as urllib_request
+except ImportError:
+	import urllib as urllib_request
+
+logging.basicConfig(level=logging.DEBUG, format="[%(levelname)10s: %(filename)25s - %(funcName)25s() ] %(message)s")
 exploitable_path = '/usr/lib/python3.5/site-packages/exploitable-1.32-py3.5.egg/exploitable/exploitable.py'
 
 
@@ -30,134 +40,186 @@ class tempdir:
 		shutil.rmtree(self.dir)
 
 
-async def analyse(temp_dir, args):
-	gdbscript = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gdbscript.py')
-	config = os.path.join(temp_dir, 'config.py')
-	output = os.path.join(temp_dir, 'output.json')
-	with open(config, 'w') as f:
-		f.write('output = "%s"\n' % output)
-		f.write('exploitable_path = "%s"\n' % exploitable_path)
-	# TODO: set shell to /bin/sh
-	proc = await asyncio.create_subprocess_exec(*(['gdb', '-n', '-batch', '--command', config, '--command', gdbscript, '--args'] + args), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-	await proc.wait()
-	with open(output, 'r') as f:
-		result = json.loads(f.read())
-	return Analysis(result)
+def feed_queue(dest_dir, queue, queue_url, campaign_id):
+	s = requests.Session()
+	while True:
+		logger.debug('fetching %s', queue_url)
+		analysis_queue = s.get(queue_url).json()['crashes']
+		for crash in analysis_queue:
+			crash_name = str(crash['crash_id'])
+			logger.info('downloading %s', crash_name)
+			local_filename = os.path.join(dest_dir, crash_name)
+			urllib_request.urlretrieve(crash['download'], filename=local_filename)
+			logger.debug('%d crashes waiting', queue.qsize())
+			queue.put((crash['crash_id'], local_filename))
 
-class Analysis:
-	def __init__(self, result):
-		self.exploitable = {}
-		if result['crash']:
-			self.crash = True
-			for line in result['exploitable']:
+def submit_results(queue, submit_url):
+	s = requests.Session()
+	while True:
+		crash_id, result = queue.get()
+		logger.debug('%d results waiting', queue.qsize())
+		logger.debug('submitting %d', crash_id)
+		logger.info(result)
+		_ = s.post(submit_url % crash_id, data=json.dumps(result), headers={'content-type': 'application/json'}).content
+
+def gdb_main():
+	global logger
+	logger = logging.getLogger('gdb')
+	logger.info('gdb started')
+
+	sys.path.append(os.path.dirname(exploitable_path))
+	gdb.execute('source %s' % exploitable_path)
+
+	gdb.execute('handle SIGALRM stop', to_string=True)
+	class ALRMBreakpoint(gdb.Breakpoint):
+		def stop(self):
+			logger.info('reached _init')
+			gdb.execute('call alarm(5)')
+			return False
+	ALRMBreakpoint('_init')
+
+	analysis_queue = requests.get(queue_url).json()['crashes']
+
+	for crash in analysis_queue:
+		crash_name = str(crash['crash_id'])
+		logger.info('downloading %s', crash_name)
+		logger.info('downloading %s', crash_name)
+		crash_path = os.path.join(dir, crash_name)
+		urllib_request.urlretrieve(crash['download'], filename=crash_path)
+
+		crash_id = crash['crash_id']
+
+		logger.info('analysing crash %d', crash_id)
+
+		# TODO: complex running syntax
+		gdb.execute('set args 4 1 0 < "%s"' % crash_path)
+		#gdb.execute('set args -r "%s"' % crash_path)
+
+		logger.debug('starting executable')
+
+		logger.info(gdb.execute('run', to_string=True))
+		logger.debug('executable stopped')
+
+		frames = []
+		try:
+			frame = gdb.newest_frame()
+		except gdb.error:
+			result = {
+				'crash': False
+				# TODO: store exit code from run
+			}
+			logger.info('submitting crash: %d result: no crash', crash_id)
+		else:
+			while frame:
+				frames.append(frame)
+				frame = frame.older()
+
+			bt = gdb.execute('bt 50', to_string=True).split('\n')[:-1]
+
+			# gobble some excess output
+			gdb.execute('exploitable', to_string=True)
+
+			exploitable = {}
+			for line in gdb.execute('exploitable', to_string=True).split('\n'):
 				if not line:
 					continue
-				field, value = line.split(': ')
-				self.exploitable[field] = value
-			self.frames = [
-				{
-					**frame,
-					'description': elem
-				} for frame, elem in zip_longest(result['frames'], result['bt'])
-			]
-			self.faulting_instruction = result['faulting instruction']
-			self.pc = result['pc']
-		else:
-			self.crash = False
+				logger.info(line)
+				field, value = line.split(': ', 1)
+				exploitable[field] = value
 
-	def print(self):
-		print()
+			result = {
+				'crash': True,
+				'pc': int(gdb.parse_and_eval('$pc')),
+				'faulting instruction': gdb.execute('x/i $pc', to_string=True)[3:],
+				'exploitable': exploitable,
+				'frames': [{
+					'address': frame.pc(),
+					'function': frame.name(),
+					'filename': frame.function().symtab.fullname() if frame.function() else None,
+					'description': backtrace
+				} for frame, backtrace in zip(frames, bt)]
+			}
+			logger.info('submitting crash: %d result: crash @ %s', crash_id, hex(result['pc']))
 
-		def str_dict(d):
-			s = ''
-			for k, v in sorted(d.items()):
-				if type(v) is str:
-					space = '\n\t  ' + ' ' * len(k)
-					v = space.join(wrap(v, width=120))
-				s += '\t%s: %s\n' % (k, v)
-			return s
-
-		if self.crash:
-			print('PC: ', hex(self.pc))
-			print('\t' + self.faulting_instruction)
-			print('Exploitable: ')
-			print(str_dict(self.exploitable))
-			print('Frames:')
-			print('\n'.join(str_dict(frame) for frame in self.frames))
-		else:
-			print('No crash')
+		#logger.info(result)
+		_ = requests.post(submit_url % crash_id, data=json.dumps(result), headers={'content-type': 'application/json'}).content
+		os.remove(crash_path)
 
 
-def download_file(url, save_path):
-	r = requests.get(url, stream=True)
-	with open(save_path, 'wb') as f:
-		for chunk in r.iter_content(chunk_size=1024):
-			if chunk:
-				f.write(chunk)
+def main():
+	global logger
+	logger = logging.getLogger('main')
 
-if __name__ == '__main__':
 	mothership = sys.argv[1]
-	count = int(sys.argv[2])
+	if not mothership.startswith('http'):
+		mothership = 'http://' + mothership
+	campaign = int(sys.argv[2])
+	if len(sys.argv) > 3:
+		global exploitable_path
+		exploitable_path = sys.argv[3]
+	logger.debug('using exploitable_path = %s', exploitable_path)
 
-	queue = asyncio.Queue(3 * count)
-	loop = asyncio.get_event_loop()
+	with tempdir('mothership_gdb_') as dir:
+		logger.info('operating out of %s', dir)
 
-	# perf_counts = [0] * 2
-	# perf_bucket = 0
-	# perf_last = time.time()
+		# TODO: support complex running syntax and custom program names
 
-	with tempdir(prefix='mothership_gdb_') as temp_dir:
-		print(temp_dir)
+		executable_url = '%s/fuzzers/download/%d/executable' % (mothership, campaign)
+		logger.debug('fetching %s', executable_url)
+		executable = os.path.join(dir, 'executable')
+		urllib_request.urlretrieve(executable_url, filename=executable)
+		os.chmod(executable, 0o755)
 
-		async def download_crashes():
-			while True:
-				analysis_queue = await loop.run_in_executor(None, requests.get, mothership + '/fuzzers/analysis_queue')
-				for crash in random.sample(analysis_queue.json()['queue'], 10):
-					crash_name = str(crash['crash_id'])
-					print('downloading', crash_name)
-					local_filename = os.path.join(temp_dir, crash_name)
-					await loop.run_in_executor(None, download_file, crash['download'], local_filename)
-					await queue.put((crash['crash_id'], local_filename))
+		libraries_url = '%s/fuzzers/download/%d/libraries.tar' % (mothership, campaign)
+		logger.debug('fetching %s', libraries_url)
+		libraries = os.path.join(dir, 'libraries')
+		os.mkdir(libraries)
+		libraries_tar = os.path.join(dir, 'libraries.tar.gz')
+		urllib_request.urlretrieve(libraries_url, filename=libraries_tar)
+		with tarfile.open(libraries_tar, 'r:') as tar:
+			for file in tar.getmembers():
+				if not file.isdir():
+					with open(os.path.join(libraries, os.path.basename(file.name)), 'wb') as f:
+						f.write(tar.extractfile(file).read())
 
-		async def analyse_crashes(temp_dir):
-			while True:
-				crash_id, path = await queue.get()
-				analysis = await analyse(temp_dir, ['./identify', path])  # TODO: fetch binary and args
-				if analysis.crash:
-					print(crash_id, 'crashed at:', analysis.pc)
-					result = {
-						'crash': True,
-						'pc': analysis.pc,
-						'faulting instruction': analysis.faulting_instruction,
-						'exploitable': analysis.exploitable,
-						'frames': analysis.frames
-					}
-				else:
-					print(crash_id, 'did not crash')
-					result = {
-						'crash': False
-					}
-				requests.post('%s/fuzzers/submit_analysis/%d' % (mothership, crash_id), json=result)
+		env = dict(os.environ)
+		env['LD_LIBRARY_PATH'] = libraries
+		env['SHELL'] = '/bin/sh'
 
-				# global perf_bucket
-				# global perf_last
-				# perf_counts[perf_bucket] += 1
-				# if time.time() - perf_last  > 10:
-				# 	for _ in range(100):
-				# 		print(perf_counts[perf_bucket] / 10, 'execs /s')
-				# 	perf_counts[perf_bucket] = 0
-				# 	perf_bucket = perf_bucket
-				# 	perf_last = time.time()
+		# FIXME: on AWS
+		# debuginfo-install glibc
+		# env['LD_PRELOAD'] = '/lib64/libpthread.so.0'
 
+		config = os.path.join(dir, 'config.py')
+		with open(config, 'w') as f:
+			f.write('submit_url = "%s/fuzzers/submit_analysis/%%d"\n' % mothership)
+			f.write('queue_url = "%s/fuzzers/analysis_queue/%d"\n' % (mothership, campaign))
+			f.write('campaign_id = %d\n' % campaign)
+			f.write('dir = "%s"\n' % dir)
+			f.write('exploitable_path = "%s"\n' % exploitable_path)
 
-		loop.create_task(download_crashes())
-		names = ['worker_%d' % n for n in range(count)]
-		for name in names:
-			dir = os.path.join(temp_dir, name)
-			os.makedirs(dir, exist_ok=True)
-			loop.create_task(analyse_crashes(dir))
-		loop.run_forever()
+		logger.debug('written %s', config)
 
-
+		logger.info('starting gdb')
+		args = ['gdb', '-n', '-batch', '--command', config, '--command', os.path.abspath(__file__), executable]
+		logger.info(' '.join(args))
+		if False:
+			# FIXME: use dry run args
+			exit(0)
+		p = subprocess.Popen(args, env=env, stdout=subprocess.PIPE)  # , stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+		atexit.register(p.terminate)
+		try:
+			p.wait()
+		except KeyboardInterrupt:
+			pass
+		finally:
+			logger.warn('TERMINATING')
+			p.terminate()
+			time.sleep(1)
+			p.kill()
 
 
+if 'gdb' in locals():
+	gdb_main()
+elif __name__ == '__main__':
+	main()
