@@ -2,15 +2,18 @@
 
 # URL of the mothership server. WARNING: make sure this is accessible from the slave. You probably want to use the internal ip
 MOTHERSHIP=http://172.31.30.196
-#http://172.31.16.9
+
 # Number of afl-instances to run on each slave
-CORES=2
-#CORES=`grep -c ^processor /proc/cpuinfo`
+# This can be specified explicitly or read the number of cores from cpuinfo
+# CORES=2
+CORES=`grep -c ^processor /proc/cpuinfo`
+
+# Directory to operate out of - use ephemeral local storage
+# It may be nessicary to specify to mount ephemeral drives when creating machines 
 WORKINGDIR=/media/ephemeral0
 
 # Github repo to download the slave script from
-GITHUB=https://raw.githubusercontent.com/synap5e/afl-mothership
-
+GITHUB=https://raw.githubusercontent.com/afl-mothership/afl-mothership
 
 set -xe
 chmod o+w $WORKINGDIR
