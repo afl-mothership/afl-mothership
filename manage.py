@@ -38,6 +38,3 @@ def createdb():
 
 if __name__ == "__main__":
 	manager.run()
-
-
-# ./venv/bin/uwsgi --http 0.0.0.0:8000 --home venv --wsgi-file manage.py --callable app --master --catch-exceptions
