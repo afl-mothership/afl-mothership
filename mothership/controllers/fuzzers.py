@@ -37,7 +37,6 @@ def register():
 	if not master:
 		campaign = get_best_campaign()
 		if not campaign:
-			models.Campaign.unlock()
 			return 'No active campaigns', 404
 		instance = models.FuzzerInstance.create(hostname=hostname)
 		instance.start_time = time.time()
