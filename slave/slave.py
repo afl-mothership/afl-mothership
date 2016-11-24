@@ -398,6 +398,9 @@ def run_slaves(mothership_url, count, workingdir):
 def main():
 	try:
 		mothership_url = sys.argv[1]
+		if mothership_url.endswith('/'):
+			mothership_url = mothership_url[:-1]
+
 	except IndexError:
 		mothership_url = 'http://localhost:5000'
 	if not mothership_url.startswith('http'):
