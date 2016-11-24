@@ -27,7 +27,7 @@ logger.addHandler(file_handler)
 console_handler = logging.StreamHandler()
 logger.addHandler(console_handler)
 
-SHARE_WHEN_POSSIBLE = False
+SHARE_WHEN_POSSIBLE = True
 DEBUG = False
 SUBMIT_FREQUENCY = 60
 SNAPSHOT_FREQUENCY = 60
