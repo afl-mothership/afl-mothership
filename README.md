@@ -58,6 +58,15 @@ cp -t data/ /tmp/afl-2.35b/afl-fuzz /tmp/afl-2.35b/libdislocator/libdislocator.s
 
 Reload the webpage and the errors should be gone! You can now create campaigns.
 
+## Creating Campaigns
+
+Use the "new campaign" button to create a campaign. Choose a name and appropriate parameters. 
+
+The executable should be built with afl-gcc/g++ or afl-clang then uploaded.
+
+Multiple testcases can be uploaded along with an optional dictionary and libraries required by the executable.
+
+Libraries and testcases also be added to a campaign after creation and a campaign will show libraries that are required by the executable.
 
 ## Launching fuzzers on AWS example
 ```
