@@ -11,5 +11,6 @@ export
 *.pem
 campaigns
 
-
 cert
+slave/logs
+slave/slave.log
