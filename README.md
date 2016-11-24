@@ -58,6 +58,14 @@ cp -t data/ /tmp/afl-2.35b/afl-fuzz /tmp/afl-2.35b/libdislocator/libdislocator.s
 
 Reload the webpage and the errors should be gone! You can now create campaigns.
 
+Note that manage.py runserver should only be used for development and real use should have uwsgi or similar serving the app.
+
+e.g.
+```
+pip install uwsgi
+./venv/bin/uwsgi --home venv --wsgi-file manage.py --callable app --master
+```
+
 ## Creating Campaigns
 
 Use the "new campaign" button to create a campaign. Choose a name and appropriate parameters. 
@@ -67,6 +75,18 @@ The executable should be built with afl-gcc/g++ or afl-clang then uploaded.
 Multiple testcases can be uploaded along with an optional dictionary and libraries required by the executable.
 
 Libraries and testcases also be added to a campaign after creation and a campaign will show libraries that are required by the executable.
+
+## Launching Fuzzers
+
+Fuzzers are launched using `slave/slave.py`.
+
+Ensure that the desired campaigns are activated in the web interface and launch slaves on the desired host(s) with
+```
+python slave.py <web address of mothership> <number of fuzzers to run> [temp directory to operate out of]
+```
+
+An example of how launching of slaves can be automated on AWS EC2 using cloud init is provided in [`cloud-init.sh`](https://github.com/afl-mothership/afl-mothership/blob/master/slave/cloud-init.sh). Note that this must be modified to use the correct address of the mothership. This script is designed for running the mothership and slaves inside the same VPC, communicating over the internal network.
+
 
 ## Launching fuzzers on AWS example
 ```
