@@ -1,1 +1,2 @@
 requests
+git+https://github.com/jfoote/exploitable
