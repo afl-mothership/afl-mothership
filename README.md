@@ -1,5 +1,7 @@
 #AFL Mothership
 
+[![Build Status](https://api.travis-ci.org/afl-mothership/afl-mothership.svg?branch=master)](https://api.travis-ci.org/afl-mothership/afl-mothership)
+
 Manage and run multiple synchronising AFL fuzzers.
 The accomponying project report can be found [here](http://uint8.me/~simon/SimonPinfold_COMP489_Final.pdf).
 
