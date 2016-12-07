@@ -8,20 +8,20 @@ class Config(object):
 	DATA_DIRECTORY = 'data'
 	UPLOAD_FREQUENCY = 60 * 15    # 15 minutes
 	DOWNLOAD_FREQUENCY = 60 * 30  # 30 minutes
+	SQLALCHEMY_TRACK_MODIFICATIONS = False
+	DEBUG_TB_INTERCEPT_REDIRECTS = False
+
 
 class ProdConfig(Config):
 	ENV = 'prod'
-	#SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://awsuser:yI3HhDk8gtx4dd1R@mothership.cgm5d3hyvt7k.us-east-1.rds.amazonaws.com/mothership'
 	SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://<username>:<password>@<identifier>.amazonaws.com/mothership'
 	CACHE_TYPE = 'simple'
-	ASSETS_DEBUG = True
+	ASSETS_DEBUG = False
 
 
 class DevConfig(Config):
 	ENV = 'dev'
 	DEBUG = True
-	SQLALCHEMY_TRACK_MODIFICATIONS = False
-	DEBUG_TB_INTERCEPT_REDIRECTS = False
 
 	SQLALCHEMY_DATABASE_URI = 'sqlite:///../database.db'
 
@@ -34,7 +34,7 @@ class TestConfig(Config):
 	DEBUG = True
 	DEBUG_TB_INTERCEPT_REDIRECTS = False
 
-	SQLALCHEMY_DATABASE_URI = 'sqlite:///' + db_file.name
+	SQLALCHEMY_DATABASE_URI = 'sqlite:///' + db_file.name + '.db'
 	SQLALCHEMY_ECHO = True
 
 	CACHE_TYPE = 'null'

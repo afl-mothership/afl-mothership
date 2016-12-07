@@ -19,6 +19,7 @@ pytest==2.7.0
 pytest-cov==1.8.1
 mccabe==0.3
 flake8==2.4.0
+pytest-flask
 
 # Production
 PyMySQL

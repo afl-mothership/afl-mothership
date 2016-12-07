@@ -14,3 +14,4 @@ campaigns
 cert
 slave/logs
 slave/slave.log
+venv*/
