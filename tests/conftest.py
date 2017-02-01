@@ -1,5 +1,10 @@
-import os
+import os, sys
 import pytest
+
+""" So PYTHONPATH enviroment variable doesn't have to 
+	be set for pytest to find mothership module. """
+curdir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(curdir,'..'))
 
 from mothership import create_app, settings
 from mothership import db as _db
